@@ -1,0 +1,16 @@
+# Flutter
+.dart_tool/
+.build/
+.packages
+pubspec.lock
+
+# Node
+node_modules/
+.env
+
+# Firebase
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# OS
+.DS_Store
