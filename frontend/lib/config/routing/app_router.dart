@@ -20,6 +20,19 @@ import '../../features/subjects/presentation/screens/subject_quizzes_screen.dart
 import '../../features/notes/presentation/screens/notes_list_screen.dart';
 import '../../features/notes/presentation/screens/note_detail_screen.dart';
 import '../../features/notes/presentation/screens/note_edit_screen.dart';
+import '../../features/assignments/presentation/screens/assignments_list_screen.dart';
+import '../../features/assignments/presentation/screens/assignment_detail_screen.dart';
+import '../../features/quizzes/presentation/screens/quizzes_list_screen.dart';
+import '../../features/quizzes/presentation/screens/quiz_detail_screen.dart';
+import '../../features/quizzes/presentation/screens/quiz_result_screen.dart';
+import '../../features/ai_assistant/presentation/screens/ai_home_screen.dart';
+import '../../features/ai_assistant/presentation/screens/ai_chat_screen.dart';
+import '../../features/ai_assistant/presentation/screens/ai_chat_history_screen.dart';
+import '../../features/profile/presentation/screens/settings_screen.dart';
+import '../../features/profile/presentation/screens/notifications_settings_screen.dart';
+import '../../features/profile/presentation/screens/appearance_settings_screen.dart';
+import '../../features/profile/presentation/screens/privacy_security_screen.dart';
+import '../../features/profile/presentation/screens/help_about_screen.dart';
 
 /// GoRouter configuration for StudyFlow AI.
 ///
@@ -157,6 +170,122 @@ GoRouter createRouter() {
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
           return NoteEditScreen(noteId: id);
+        },
+      ),
+      // ── Quizzes module (Phase 2H) ──────────────────────────────────────
+      GoRoute(
+        path: RoutePaths.quizzesList,
+        name: 'quizzesList',
+        builder: (context, state) => const QuizzesListScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.quizDetail,
+        name: 'quizDetail',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return QuizDetailScreen(quizId: id);
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.quizResult,
+        name: 'quizResult',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          final score = extra['score'] as int? ?? 0;
+          final total = extra['total'] as int? ?? 0;
+          return QuizResultScreen(
+              quizId: id, score: score, total: total);
+        },
+      ),
+
+      // ── Assignments module (Phase 2G) ──────────────────────────────────
+      GoRoute(
+        path: RoutePaths.assignmentsList,
+        name: 'assignmentsList',
+        builder: (context, state) => const AssignmentsListScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.assignmentDetail,
+        name: 'assignmentDetail',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return AssignmentDetailScreen(assignmentId: id);
+        },
+      ),
+      // ── Profile & Settings module (Phase 2L) ──────────────────────────
+      GoRoute(
+        path: RoutePaths.settings,
+        name: 'settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.settingsNotifications,
+        name: 'settingsNotifications',
+        builder: (context, state) =>
+            const NotificationsSettingsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.settingsAppearance,
+        name: 'settingsAppearance',
+        builder: (context, state) =>
+            const AppearanceSettingsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.settingsPrivacy,
+        name: 'settingsPrivacy',
+        builder: (context, state) =>
+            const PrivacySettingsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.settingsSecurity,
+        name: 'settingsSecurity',
+        builder: (context, state) =>
+            const SecuritySettingsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.settingsHelp,
+        name: 'settingsHelp',
+        builder: (context, state) => const HelpSupportScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.settingsAbout,
+        name: 'settingsAbout',
+        builder: (context, state) => const AboutScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.editProfile,
+        name: 'editProfile',
+        builder: (context, state) => const AboutScreen(), // placeholder
+      ),
+
+      // ── AI Assistant module (Phase 2K) ────────────────────────────────
+      GoRoute(
+        path: RoutePaths.aiAssistant,
+        name: 'aiAssistant',
+        builder: (context, state) => const AIHomeScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.aiChatNew,
+        name: 'aiChatNew',
+        builder: (context, state) => AIChatScreen(
+          extra: state.extra as Map<String, dynamic>?,
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.aiChatHistory,
+        name: 'aiChatHistory',
+        builder: (context, state) => const AIChatHistoryScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.aiChat,
+        name: 'aiChat',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return AIChatScreen(
+            sessionId: id,
+            extra: state.extra as Map<String, dynamic>?,
+          );
         },
       ),
       // Phase 3: Replace with ShellRoute for persistent bottom nav via GoRouter

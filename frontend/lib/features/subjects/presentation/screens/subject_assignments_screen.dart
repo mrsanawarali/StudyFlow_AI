@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:untitled/config/routing/route_paths.dart';
 import 'package:untitled/config/theme/app_colors.dart';
 import 'package:untitled/config/theme/app_radius.dart';
 import 'package:untitled/config/theme/app_spacing.dart';
@@ -70,7 +71,12 @@ class SubjectAssignmentsScreen extends StatelessWidget {
                 ...assignments.map((a) => Padding(
                       padding:
                           const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _AssignmentCard(assignment: a),
+                      child: GestureDetector(
+                        onTap: () => context.push(
+                          RoutePaths.assignmentDetailPath(a.id),
+                        ),
+                        child: _AssignmentCard(assignment: a),
+                      ),
                     )),
               ],
             ),

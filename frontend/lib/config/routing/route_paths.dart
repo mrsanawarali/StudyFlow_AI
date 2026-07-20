@@ -81,17 +81,63 @@ class RoutePaths {
   /// Edit note — pass `:id` parameter.
   static const String noteEdit = '/notes/:id/edit';
 
-  /// Chapter detail — pass `:id` parameter.
-  static const String chapterDetail = '/chapters/:id';
+  // ── Quizzes module ────────────────────────────────────────────────────────
+  /// Global quizzes list.
+  static const String quizzesList = '/quizzes';
+
+  /// Quiz detail / attempt — pass `:id` parameter.
+  static const String quizDetail = '/quizzes/:id';
+
+  /// Quiz result — pass `:id` parameter.
+  static const String quizResult = '/quizzes/:id/result';
+
+  // ── Assignments module ────────────────────────────────────────────────────
+  /// Global assignments list.
+  static const String assignmentsList = '/assignments';
+
+  /// Assignment detail — pass `:id` parameter.
+  static const String assignmentDetail = '/assignments/:id';
 
   /// Grade calculator screen.
   static const String gradeCalculator = '/grades';
 
-  /// App settings screen.
+  // ── Profile & Settings module ────────────────────────────────────────────
+  /// Settings screen.
   static const String settings = '/settings';
 
-  /// AI assistant screen (future feature).
+  /// Edit profile screen.
+  static const String editProfile = '/profile/edit';
+
+  /// Notifications settings.
+  static const String settingsNotifications = '/settings/notifications';
+
+  /// Appearance settings.
+  static const String settingsAppearance = '/settings/appearance';
+
+  /// Privacy settings.
+  static const String settingsPrivacy = '/settings/privacy';
+
+  /// Security settings.
+  static const String settingsSecurity = '/settings/security';
+
+  /// Help & support.
+  static const String settingsHelp = '/settings/help';
+
+  /// About screen.
+  static const String settingsAbout = '/settings/about';
+
+  // ── AI Assistant module ───────────────────────────────────────────────────
+  /// AI Assistant home screen.
   static const String aiAssistant = '/ai';
+
+  /// New AI chat.
+  static const String aiChatNew = '/ai/chat/new';
+
+  /// AI chat history.
+  static const String aiChatHistory = '/ai/history';
+
+  /// AI chat with session — pass `:id`.
+  static const String aiChat = '/ai/chat/:id';
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   /// Builds a semester detail path with the given [id].
@@ -119,6 +165,18 @@ class RoutePaths {
 
   /// Builds a note edit path with the given [id].
   static String noteEditPath(String id) => '/notes/$id/edit';
+
+  /// Builds an assignment detail path with the given [id].
+  static String assignmentDetailPath(String id) => '/assignments/$id';
+
+  /// Builds a quiz detail path with the given [id].
+  static String quizDetailPath(String id) => '/quizzes/$id';
+
+  /// Builds a quiz result path with the given [id].
+  static String quizResultPath(String id) => '/quizzes/$id/result';
+
+  /// Builds an AI chat path with the given session [id].
+  static String aiChatPath(String id) => '/ai/chat/$id';
 
   /// Builds a chapter detail path with the given [id].
   static String chapterDetailPath(String id) => '/chapters/$id';

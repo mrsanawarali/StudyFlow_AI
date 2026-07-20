@@ -1,25 +1,110 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:untitled/config/theme/app_colors.dart';
+import 'package:untitled/config/theme/app_spacing.dart';
 
-import '../../../../../config/theme/app_colors.dart';
-import '../../../../../config/theme/app_spacing.dart';
+// ─────────────────────────────────────────────────────────────────────────────
+// Public widget
+// ─────────────────────────────────────────────────────────────────────────────
 
-/// Onboarding illustration for page 2 — "Offline First" motif.
+/// Premium animated 3-D sync scene for onboarding page 2 — "Offline First".
 ///
-/// Renders a large cloud outline with a shield overlay (both in
-/// [AppColors.secondary]) and circular sync arrows with accent fills
-/// (in [AppColors.tertiary]).  All coordinates are expressed as fractions
-/// of the canvas [Size] so the painting scales correctly at any resolution.
-class OnboardingIllustration2 extends StatelessWidget {
+/// Composition:
+///   • Central cloud storage card with lock/shield icon — main float
+///   • Mobile device card — floats with phase 0.25
+///   • Laptop card — floats with phase 0.55
+///   • Tablet card — floats with phase 0.75
+///   • Sync arrows between cloud and devices — animate rotation
+///   • Download progress indicator — animated bar
+///   • Sparkle and glow accents
+///
+/// Replaces the old static [CustomPaint] with a fully animated [StatefulWidget].
+/// Drop-in replacement — same class name, same constructor.
+class OnboardingIllustration2 extends StatefulWidget {
   const OnboardingIllustration2({super.key});
 
   @override
+  State<OnboardingIllustration2> createState() =>
+      _OnboardingIllustration2State();
+}
+
+class _OnboardingIllustration2State extends State<OnboardingIllustration2>
+    with TickerProviderStateMixin {
+  late final AnimationController _floatCtrl;
+  late final AnimationController _syncCtrl;  // sync arrows rotation
+  late final AnimationController _dlCtrl;    // download bar progress
+  late final AnimationController _sparkleCtrl;
+  late final AnimationController _enterCtrl;
+  late final Animation<double> _enterFade;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _floatCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..repeat(reverse: true);
+
+    _syncCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 5000),
+    )..repeat();
+
+    _dlCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
+
+    _sparkleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+
+    _enterCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    );
+    _enterFade = CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOut);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _enterCtrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _floatCtrl.dispose();
+    _syncCtrl.dispose();
+    _dlCtrl.dispose();
+    _sparkleCtrl.dispose();
+    _enterCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: AppSpacing.xxxl * 3, // 192 dp
-      width: double.infinity,
-      child: CustomPaint(painter: _OfflineFirstPainter()),
+    return FadeTransition(
+      opacity: _enterFade,
+      child: SizedBox(
+        height: AppSpacing.xxxl * 3, // 192 dp
+        width: double.infinity,
+        child: AnimatedBuilder(
+          animation: Listenable.merge(
+              [_floatCtrl, _syncCtrl, _dlCtrl, _sparkleCtrl]),
+          builder: (context, _) {
+            return CustomPaint(
+              painter: _OfflineSyncScenePainter(
+                floatT: _floatCtrl.value,
+                syncT: _syncCtrl.value,
+                dlT: _dlCtrl.value,
+                sparkleT: _sparkleCtrl.value,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -28,475 +113,481 @@ class OnboardingIllustration2 extends StatelessWidget {
 // Painter
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _OfflineFirstPainter extends CustomPainter {
+class _OfflineSyncScenePainter extends CustomPainter {
+  const _OfflineSyncScenePainter({
+    required this.floatT,
+    required this.syncT,
+    required this.dlT,
+    required this.sparkleT,
+  });
+
+  final double floatT;
+  final double syncT;
+  final double dlT;
+  final double sparkleT;
+
+  double _floatY(double phase, {double amplitude = 5.5}) {
+    final p = (floatT + phase) % 1.0;
+    return amplitude * math.sin(p * math.pi);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double h = size.height;
+    final w = size.width;
+    final h = size.height;
 
-    // ── Background soft glow ─────────────────────────────────────────────────
-    _drawBackgroundGlow(canvas, w, h);
+    // ── Background ambient glows ──────────────────────────────────────────
+    _glow(canvas, Offset(w * 0.5, h * 0.40), w * 0.30,
+        AppColors.secondary.withValues(alpha: 0.10));
+    _glow(canvas, Offset(w * 0.82, h * 0.68), w * 0.16,
+        AppColors.tertiary.withValues(alpha: 0.09));
+    _glow(canvas, Offset(w * 0.18, h * 0.65), w * 0.14,
+        AppColors.secondaryLight.withValues(alpha: 0.07));
 
-    // ── Cloud shape ──────────────────────────────────────────────────────────
-    _drawCloud(canvas, w, h);
+    // ── Sync orbit ring (subtle dashed circle) ───────────────────────────
+    _drawOrbitRing(canvas, w, h);
 
-    // ── Shield overlay ───────────────────────────────────────────────────────
-    _drawShield(canvas, w, h);
-
-    // ── Sync / circular arrows ───────────────────────────────────────────────
+    // ── Animated sync arrows around cloud ────────────────────────────────
     _drawSyncArrows(canvas, w, h);
 
-    // ── Floating accent dots ─────────────────────────────────────────────────
-    _drawAccentDots(canvas, w, h);
-
-    // ── Wi-Fi-off bars (disconnected state indicator) ────────────────────────
-    _drawOfflineBars(canvas, w, h);
-  }
-
-  // ── Background glow ────────────────────────────────────────────────────────
-
-  void _drawBackgroundGlow(Canvas canvas, double w, double h) {
-    final Paint glowPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          AppColors.secondary.withOpacity(0.10),
-          AppColors.secondary.withOpacity(0.0),
-        ],
-      ).createShader(
-        Rect.fromCircle(
-          center: Offset(w * 0.50, h * 0.48),
-          radius: w * 0.44,
-        ),
-      );
-    canvas.drawCircle(Offset(w * 0.50, h * 0.48), w * 0.44, glowPaint);
-  }
-
-  // ── Cloud ──────────────────────────────────────────────────────────────────
-
-  void _drawCloud(Canvas canvas, double w, double h) {
-    // Cloud fill (very light tint of secondary)
-    final Paint fillPaint = Paint()
-      ..color = AppColors.secondary.withOpacity(0.08)
-      ..style = PaintingStyle.fill;
-
-    // Cloud outline
-    final Paint strokePaint = Paint()
-      ..color = AppColors.secondary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.012
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final Path cloudPath = _buildCloudPath(w, h);
-
-    canvas.drawPath(cloudPath, fillPaint);
-    canvas.drawPath(cloudPath, strokePaint);
-
-    // Inner cloud highlight stroke (slightly smaller, very faint)
-    final Paint highlightPaint = Paint()
-      ..color = AppColors.secondaryLight.withOpacity(0.25)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.005
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
+    // ── Laptop — bottom-left (phase 0.55) ────────────────────────────────
+    final laptopFloat = _floatY(0.55, amplitude: 6.0);
     canvas.save();
-    canvas.translate(0, h * 0.012);
-    canvas.drawPath(_buildCloudPath(w, h), highlightPaint);
+    canvas.translate(w * 0.14, h * 0.56 + laptopFloat);
+    canvas.rotate(-0.16);
+    _drawLaptop(canvas, w, h);
     canvas.restore();
+
+    // ── Tablet — bottom-right (phase 0.75) ───────────────────────────────
+    final tabletFloat = _floatY(0.75, amplitude: 5.0);
+    canvas.save();
+    canvas.translate(w * 0.86, h * 0.52 + tabletFloat);
+    canvas.rotate(0.18);
+    _drawTablet(canvas, w, h);
+    canvas.restore();
+
+    // ── Mobile — left-centre (phase 0.25) ────────────────────────────────
+    final mobileFloat = _floatY(0.25, amplitude: 7.0);
+    canvas.save();
+    canvas.translate(w * 0.16, h * 0.26 + mobileFloat);
+    canvas.rotate(-0.12);
+    _drawMobile(canvas, w, h);
+    canvas.restore();
+
+    // ── Central cloud storage card (phase 0.0) ───────────────────────────
+    final cloudFloat = _floatY(0.0, amplitude: 4.5);
+    canvas.save();
+    canvas.translate(w * 0.50, h * 0.35 + cloudFloat);
+    _drawCloudCard(canvas, w, h);
+    canvas.restore();
+
+    // ── Download indicator — bottom-centre ───────────────────────────────
+    _drawDownloadBar(canvas, w, h);
+
+    // ── Sparkles ──────────────────────────────────────────────────────────
+    final sr = 0.011 + sparkleT * 0.005;
+    _sparkle(canvas, Offset(w * 0.62, h * 0.05),
+        w * sr, AppColors.tertiary.withValues(alpha: 0.85));
+    _sparkle(canvas, Offset(w * 0.24, h * 0.08),
+        w * sr * 0.70, AppColors.secondaryLight.withValues(alpha: 0.75));
+    _sparkle(canvas, Offset(w * 0.91, h * 0.34),
+        w * sr * 0.65, AppColors.tertiary.withValues(alpha: 0.70));
+    _sparkle(canvas, Offset(w * 0.06, h * 0.45),
+        w * sr * 0.55, AppColors.secondaryLight.withValues(alpha: 0.60));
   }
 
-  Path _buildCloudPath(double w, double h) {
-    // Centre the cloud in the upper-centre area of the canvas.
-    //
-    // Key anchor fractions (all relative to w/h):
-    //  Main body bottom centre: (0.50, 0.60)
-    //  Left tail:               (0.18, 0.60)
-    //  Right tail:              (0.82, 0.60)
-    //  Cloud top peak:          (0.50, 0.14)
+  // ── Central cloud card ───────────────────────────────────────────────────
 
-    final double cx = w * 0.50;
-    final double baseY = h * 0.60;
+  void _drawCloudCard(Canvas canvas, double w, double h) {
+    final cw = w * 0.38;
+    final ch = h * 0.42;
 
-    // Bumps (centre-x, centre-y, radius) as fractions
-    final List<_Circle> bumps = [
-      _Circle(cx, h * 0.36, w * 0.135), // large central top bump
-      _Circle(w * 0.35, h * 0.43, w * 0.100), // left-of-centre bump
-      _Circle(w * 0.65, h * 0.43, w * 0.100), // right-of-centre bump
-      _Circle(w * 0.23, h * 0.52, w * 0.080), // far-left bump
-      _Circle(w * 0.77, h * 0.52, w * 0.080), // far-right bump
-    ];
+    // Glass card
+    _glassRect(canvas, cw, ch, 14,
+        AppColors.secondary.withValues(alpha: 0.20),
+        AppColors.secondaryLight.withValues(alpha: 0.28));
 
-    // Build cloud outline using arc segments
-    final Path path = Path();
+    // Cloud icon (simplified 3-bump silhouette)
+    final cloudPaint = Paint()
+      ..color = AppColors.secondaryLight.withValues(alpha: 0.90)
+      ..style = PaintingStyle.fill;
+    final cloudGlow = Paint()
+      ..color = AppColors.secondary.withValues(alpha: 0.35)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
-    // Flat bottom-left corner
-    path.moveTo(w * 0.18, baseY);
+    final cloudPath = _cloudPath(0, -ch * 0.14, cw * 0.55, ch * 0.22);
+    canvas.drawPath(cloudPath, cloudGlow);
+    canvas.drawPath(cloudPath, cloudPaint);
 
-    // Bottom straight edge
-    path.lineTo(w * 0.82, baseY);
+    // Shield below cloud
+    _drawShieldIcon(canvas, 0, ch * 0.12, cw * 0.18, ch * 0.22);
 
-    // Right side up to far-right bump
-    path.arcToPoint(
-      Offset(bumps[4].cx + bumps[4].r, bumps[4].cy),
-      radius: Radius.circular(w * 0.06),
-      clockwise: false,
-    );
+    // Label "Secure Sync"
+    final tp = TextPainter(
+      text: TextSpan(
+        text: 'Secure Sync',
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.80),
+          fontSize: w * 0.030,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(-tp.width / 2, ch * 0.32));
+  }
 
-    // Far-right bump arc (upper half)
-    path.arcToPoint(
-      Offset(bumps[4].cx - bumps[4].r, bumps[4].cy),
-      radius: Radius.circular(bumps[4].r),
-      clockwise: false,
-    );
+  Path _cloudPath(double cx, double cy, double cloudW, double cloudH) {
+    final path = Path();
+    final l = cx - cloudW / 2;
+    final r = cx + cloudW / 2;
+    final b = cy + cloudH * 0.40;
+    final midY = cy;
 
-    // Bridge to right-of-centre bump
-    path.arcToPoint(
-      Offset(bumps[2].cx + bumps[2].r, bumps[2].cy),
-      radius: Radius.circular(w * 0.06),
-      clockwise: false,
-    );
-
-    // Right-of-centre bump arc
-    path.arcToPoint(
-      Offset(bumps[2].cx - bumps[2].r, bumps[2].cy),
-      radius: Radius.circular(bumps[2].r),
-      clockwise: false,
-    );
-
-    // Bridge to central top bump
-    path.arcToPoint(
-      Offset(bumps[0].cx + bumps[0].r, bumps[0].cy),
-      radius: Radius.circular(w * 0.06),
-      clockwise: false,
-    );
-
-    // Central top bump arc
-    path.arcToPoint(
-      Offset(bumps[0].cx - bumps[0].r, bumps[0].cy),
-      radius: Radius.circular(bumps[0].r),
-      clockwise: false,
-    );
-
-    // Bridge to left-of-centre bump
-    path.arcToPoint(
-      Offset(bumps[1].cx - bumps[1].r, bumps[1].cy),
-      radius: Radius.circular(w * 0.06),
-      clockwise: false,
-    );
-
-    // Left-of-centre bump arc
-    path.arcToPoint(
-      Offset(bumps[1].cx + bumps[1].r, bumps[1].cy),
-      radius: Radius.circular(bumps[1].r),
-      clockwise: true,
-    );
-
-    // Bridge to far-left bump
-    path.arcToPoint(
-      Offset(bumps[3].cx - bumps[3].r, bumps[3].cy),
-      radius: Radius.circular(w * 0.06),
-      clockwise: false,
-    );
-
-    // Far-left bump arc
-    path.arcToPoint(
-      Offset(bumps[3].cx + bumps[3].r, bumps[3].cy),
-      radius: Radius.circular(bumps[3].r),
-      clockwise: true,
-    );
-
-    // Down to bottom-left corner
-    path.arcToPoint(
-      Offset(w * 0.18, baseY),
-      radius: Radius.circular(w * 0.06),
-      clockwise: false,
-    );
-
+    path.moveTo(l + cloudW * 0.10, b);
+    path.lineTo(r - cloudW * 0.10, b);
+    path.arcToPoint(Offset(r, midY),
+        radius: Radius.circular(cloudH * 0.22), clockwise: false);
+    path.arcToPoint(Offset(cx + cloudW * 0.15, midY - cloudH * 0.18),
+        radius: Radius.circular(cloudH * 0.20), clockwise: false);
+    path.arcToPoint(Offset(cx - cloudW * 0.15, midY - cloudH * 0.18),
+        radius: Radius.circular(cloudH * 0.26), clockwise: false);
+    path.arcToPoint(Offset(l, midY),
+        radius: Radius.circular(cloudH * 0.20), clockwise: false);
+    path.arcToPoint(Offset(l + cloudW * 0.10, b),
+        radius: Radius.circular(cloudH * 0.22), clockwise: false);
     path.close();
     return path;
   }
 
-  // ── Shield ─────────────────────────────────────────────────────────────────
-
-  void _drawShield(Canvas canvas, double w, double h) {
-    // Shield centred in the lower half of the cloud body.
-    final double sx = w * 0.50; // centre x
-    final double sy = h * 0.50; // centre y
-    final double sw = w * 0.20; // half-width
-    final double sh = h * 0.26; // half-height
-
-    final Path shieldPath = Path();
-    shieldPath.moveTo(sx, sy - sh); // top centre
-    shieldPath.lineTo(sx + sw, sy - sh * 0.70); // top-right shoulder
-    shieldPath.lineTo(sx + sw, sy + sh * 0.10); // right mid
-    // Bottom tip curve
-    shieldPath.quadraticBezierTo(
-      sx + sw * 0.50, sy + sh,
-      sx, sy + sh,
-    );
-    shieldPath.quadraticBezierTo(
-      sx - sw * 0.50, sy + sh,
-      sx - sw, sy + sh * 0.10,
-    );
-    shieldPath.lineTo(sx - sw, sy - sh * 0.70); // left mid
-    shieldPath.close();
-
-    // Shield fill — subtle secondary tint
-    final Paint shieldFill = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          AppColors.secondary.withOpacity(0.22),
-          AppColors.secondary.withOpacity(0.10),
-        ],
-      ).createShader(
-        Rect.fromLTWH(sx - sw, sy - sh, sw * 2, sh * 2),
-      )
+  void _drawShieldIcon(
+      Canvas canvas, double cx, double cy, double sw, double sh) {
+    final paint = Paint()
+      ..color = AppColors.tertiary.withValues(alpha: 0.90)
       ..style = PaintingStyle.fill;
+    final glowPaint = Paint()
+      ..color = AppColors.tertiary.withValues(alpha: 0.30)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
-    // Shield stroke
-    final Paint shieldStroke = Paint()
-      ..color = AppColors.secondary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.011
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    final path = Path()
+      ..moveTo(cx, cy - sh)
+      ..lineTo(cx + sw, cy - sh * 0.65)
+      ..lineTo(cx + sw, cy + sh * 0.10)
+      ..quadraticBezierTo(cx + sw * 0.50, cy + sh, cx, cy + sh)
+      ..quadraticBezierTo(cx - sw * 0.50, cy + sh, cx - sw, cy + sh * 0.10)
+      ..lineTo(cx - sw, cy - sh * 0.65)
+      ..close();
 
-    canvas.drawPath(shieldPath, shieldFill);
-    canvas.drawPath(shieldPath, shieldStroke);
+    canvas.drawPath(path, glowPaint);
+    canvas.drawPath(path, paint);
 
-    // Checkmark inside shield (tertiary colour)
-    _drawShieldCheck(canvas, sx, sy, sw, sh);
-  }
-
-  void _drawShieldCheck(
-    Canvas canvas,
-    double sx,
-    double sy,
-    double sw,
-    double sh,
-  ) {
-    final Paint checkPaint = Paint()
-      ..color = AppColors.tertiary
+    // Tick
+    final tickPaint = Paint()
+      ..color = AppColors.primary.withValues(alpha: 0.90)
       ..style = PaintingStyle.stroke
       ..strokeWidth = sw * 0.22
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-
-    final Path checkPath = Path();
-    // Tick: down-left then up-right
-    checkPath.moveTo(sx - sw * 0.38, sy + sh * 0.08);
-    checkPath.lineTo(sx - sw * 0.08, sy + sh * 0.36);
-    checkPath.lineTo(sx + sw * 0.42, sy - sh * 0.22);
-
-    canvas.drawPath(checkPath, checkPaint);
+    final tickPath = Path()
+      ..moveTo(cx - sw * 0.38, cy + sh * 0.05)
+      ..lineTo(cx - sw * 0.08, cy + sh * 0.32)
+      ..lineTo(cx + sw * 0.42, cy - sh * 0.25);
+    canvas.drawPath(tickPath, tickPaint);
   }
 
-  // ── Sync arrows ────────────────────────────────────────────────────────────
+  // ── Mobile device ─────────────────────────────────────────────────────────
+
+  void _drawMobile(Canvas canvas, double w, double h) {
+    final dw = w * 0.14;
+    final dh = h * 0.30;
+    final cr = dw * 0.18;
+
+    _glassRect(canvas, dw, dh, cr,
+        AppColors.secondary.withValues(alpha: 0.18),
+        AppColors.secondaryLight.withValues(alpha: 0.25));
+
+    // Screen content — coloured bars
+    _contentBars(canvas, dw * 0.60, dh * 0.48, 3,
+        AppColors.secondaryLight.withValues(alpha: 0.60), dh * 0.045);
+
+    // Home bar
+    final homeBar = Paint()
+      ..color = Colors.white.withValues(alpha: 0.30)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+            center: Offset(0, dh * 0.40), width: dw * 0.38, height: dh * 0.025),
+        const Radius.circular(3),
+      ),
+      homeBar,
+    );
+  }
+
+  // ── Laptop ────────────────────────────────────────────────────────────────
+
+  void _drawLaptop(Canvas canvas, double w, double h) {
+    final lw = w * 0.26;
+    final lh = h * 0.20;
+
+    // Screen
+    _glassRect(canvas, lw, lh, 6,
+        AppColors.secondary.withValues(alpha: 0.18),
+        AppColors.secondaryLight.withValues(alpha: 0.25));
+
+    // Screen content
+    _contentBars(canvas, lw * 0.68, lh * 0.30, 2,
+        AppColors.tertiary.withValues(alpha: 0.65), lh * 0.065);
+
+    // Keyboard base
+    final basePaint = Paint()
+      ..color = AppColors.secondary.withValues(alpha: 0.30)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+            center: Offset(0, lh / 2 + lh * 0.14),
+            width: lw * 1.15,
+            height: lh * 0.14),
+        const Radius.circular(4),
+      ),
+      basePaint,
+    );
+  }
+
+  // ── Tablet ────────────────────────────────────────────────────────────────
+
+  void _drawTablet(Canvas canvas, double w, double h) {
+    final tw = w * 0.19;
+    final th = h * 0.28;
+
+    _glassRect(canvas, tw, th, 8,
+        AppColors.tertiary.withValues(alpha: 0.16),
+        AppColors.tertiaryLight.withValues(alpha: 0.28));
+
+    // Content
+    _contentBars(canvas, tw * 0.62, th * 0.40, 3,
+        AppColors.tertiaryLight.withValues(alpha: 0.65), th * 0.05);
+
+    // Camera dot
+    canvas.drawCircle(
+      Offset(0, -th * 0.44),
+      tw * 0.06,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.35)
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  // ── Orbit ring ────────────────────────────────────────────────────────────
+
+  void _drawOrbitRing(Canvas canvas, double w, double h) {
+    final paint = Paint()
+      ..color = AppColors.secondary.withValues(alpha: 0.10)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(w * 0.50, h * 0.50),
+          width: w * 0.72,
+          height: h * 0.64),
+      paint,
+    );
+  }
+
+  // ── Animated sync arrows ──────────────────────────────────────────────────
 
   void _drawSyncArrows(Canvas canvas, double w, double h) {
-    // Two opposing arc-arrows forming a circular sync symbol.
-    // Positioned below and to the right of the cloud, slightly overlapping.
-    final double cx = w * 0.72;
-    final double cy = h * 0.74;
-    final double r = w * 0.095;
+    final cx = w * 0.50;
+    final cy = h * 0.36;
+    final r = w * 0.20;
+    final angle = syncT * 2 * math.pi;
 
-    final Paint arcPaint = Paint()
-      ..color = AppColors.tertiary
+    final arcPaint = Paint()
+      ..color = AppColors.tertiary.withValues(alpha: 0.75)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.014
+      ..strokeWidth = w * 0.012
       ..strokeCap = StrokeCap.round;
 
-    final Paint fillPaint = Paint()
-      ..color = AppColors.tertiary.withOpacity(0.15)
-      ..style = PaintingStyle.fill;
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(angle);
 
-    // Background circle fill
-    canvas.drawCircle(Offset(cx, cy), r * 1.30, fillPaint);
+    final rect = Rect.fromCircle(center: Offset.zero, radius: r);
+    // Top arc
+    canvas.drawArc(rect, _deg(200), _deg(130), false, arcPaint);
+    // Bottom arc
+    canvas.drawArc(rect, _deg(20), _deg(130), false, arcPaint);
+    // Arrowheads
+    _arrowhead(canvas, r, _deg(330), arcPaint);
+    _arrowhead(canvas, r, _deg(150), arcPaint);
 
-    // Top arc (clockwise, from ~200° to ~340°)
-    final Rect arcRect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
-    canvas.drawArc(arcRect, _deg(200), _deg(140), false, arcPaint);
-
-    // Bottom arc (clockwise, from ~20° to ~160°)
-    canvas.drawArc(arcRect, _deg(20), _deg(140), false, arcPaint);
-
-    // Arrowhead on top arc (at ~340°)
-    _drawArrowhead(canvas, cx, cy, r, _deg(340), arcPaint);
-
-    // Arrowhead on bottom arc (at ~160°)
-    _drawArrowhead(canvas, cx, cy, r, _deg(160), arcPaint);
-
-    // Second smaller sync symbol top-left for depth
-    final double cx2 = w * 0.28;
-    final double cy2 = h * 0.76;
-    final double r2 = w * 0.060;
-
-    final Paint arcPaint2 = Paint()
-      ..color = AppColors.tertiary.withOpacity(0.65)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.010
-      ..strokeCap = StrokeCap.round;
-
-    final Paint fillPaint2 = Paint()
-      ..color = AppColors.tertiary.withOpacity(0.10)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(Offset(cx2, cy2), r2 * 1.30, fillPaint2);
-
-    final Rect arcRect2 =
-        Rect.fromCircle(center: Offset(cx2, cy2), radius: r2);
-    canvas.drawArc(arcRect2, _deg(200), _deg(140), false, arcPaint2);
-    canvas.drawArc(arcRect2, _deg(20), _deg(140), false, arcPaint2);
-    _drawArrowhead(canvas, cx2, cy2, r2, _deg(340), arcPaint2);
-    _drawArrowhead(canvas, cx2, cy2, r2, _deg(160), arcPaint2);
+    canvas.restore();
   }
 
-  void _drawArrowhead(
-    Canvas canvas,
-    double cx,
-    double cy,
-    double r,
-    double angleRad,
-    Paint paint,
-  ) {
-    // Point on the arc circle at angleRad
-    final double px = cx + r * math.cos(angleRad);
-    final double py = cy + r * math.sin(angleRad);
+  void _arrowhead(Canvas canvas, double r, double angle, Paint paint) {
+    final px = r * math.cos(angle);
+    final py = r * math.sin(angle);
+    final tx = -math.sin(angle);
+    final ty = math.cos(angle);
+    final as = r * 0.20;
 
-    // Tangent direction (perpendicular to radius, clockwise)
-    final double tx = -math.sin(angleRad);
-    final double ty = math.cos(angleRad);
+    final path = Path()
+      ..moveTo(px, py)
+      ..lineTo(px - as * (tx * 0.7 + (-ty) * 0.5),
+          py - as * (ty * 0.7 + tx * 0.5))
+      ..moveTo(px, py)
+      ..lineTo(px - as * (tx * 0.7 - (-ty) * 0.5),
+          py - as * (ty * 0.7 - tx * 0.5));
 
-    final double as = r * 0.38; // arrowhead size
-    final Path arrow = Path();
-    arrow.moveTo(px, py);
-    arrow.lineTo(
-      px - as * (tx * 0.7 + (-ty) * 0.5),
-      py - as * (ty * 0.7 + tx * 0.5),
+    canvas.drawPath(path, paint);
+  }
+
+  // ── Download bar ─────────────────────────────────────────────────────────
+
+  void _drawDownloadBar(Canvas canvas, double w, double h) {
+    final bx = w * 0.50;
+    final by = h * 0.88;
+    final bw = w * 0.38;
+    final bh = h * 0.030;
+    final cr = bh / 2;
+
+    // Track
+    final trackPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.10)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(bx, by), width: bw, height: bh),
+          Radius.circular(cr)),
+      trackPaint,
     );
-    arrow.moveTo(px, py);
-    arrow.lineTo(
-      px - as * (tx * 0.7 - (-ty) * 0.5),
-      py - as * (ty * 0.7 - tx * 0.5),
+
+    // Animated fill
+    final fillW = bw * (0.25 + dlT * 0.65);
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [AppColors.secondary, AppColors.tertiary],
+      ).createShader(Rect.fromCenter(
+          center: Offset(bx - bw / 2 + fillW / 2, by),
+          width: fillW,
+          height: bh))
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(bx - bw / 2, by - bh / 2, fillW, bh),
+        Radius.circular(cr),
+      ),
+      fillPaint,
     );
 
-    final Paint arrowPaint = Paint()
-      ..color = paint.color
+    // Download icon above bar
+    final iconPaint = Paint()
+      ..color = AppColors.tertiary.withValues(alpha: 0.85)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = paint.strokeWidth
+      ..strokeWidth = w * 0.009
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawPath(arrow, arrowPaint);
+    final iconPath = Path()
+      ..moveTo(bx, by - bh * 3.5)
+      ..lineTo(bx, by - bh * 1.6)
+      ..moveTo(bx - w * 0.016, by - bh * 2.2)
+      ..lineTo(bx, by - bh * 1.6)
+      ..lineTo(bx + w * 0.016, by - bh * 2.2);
+    canvas.drawPath(iconPath, iconPaint);
   }
 
-  // ── Accent dots ────────────────────────────────────────────────────────────
+  // ── Glass rect helper ─────────────────────────────────────────────────────
 
-  void _drawAccentDots(Canvas canvas, double w, double h) {
-    final List<_DotSpec> dots = [
-      _DotSpec(w * 0.10, h * 0.22, w * 0.018, AppColors.tertiary, 0.70),
-      _DotSpec(w * 0.88, h * 0.28, w * 0.014, AppColors.tertiary, 0.50),
-      _DotSpec(w * 0.15, h * 0.75, w * 0.012, AppColors.secondary, 0.40),
-      _DotSpec(w * 0.85, h * 0.68, w * 0.016, AppColors.secondary, 0.35),
-      _DotSpec(w * 0.50, h * 0.88, w * 0.013, AppColors.tertiary, 0.55),
-      _DotSpec(w * 0.06, h * 0.48, w * 0.010, AppColors.tertiary, 0.45),
-      _DotSpec(w * 0.94, h * 0.50, w * 0.010, AppColors.secondary, 0.45),
-    ];
-
-    for (final dot in dots) {
-      final Paint p = Paint()
-        ..color = dot.color.withOpacity(dot.opacity)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(dot.x, dot.y), dot.r, p);
-    }
+  void _glassRect(Canvas canvas, double cw, double ch, double cr,
+      Color fill, Color border) {
+    final rr = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: cw, height: ch),
+        Radius.circular(cr));
+    canvas.drawRRect(rr, Paint()..color = fill..style = PaintingStyle.fill);
+    canvas.drawRRect(
+        rr,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.center,
+            colors: [
+              Colors.white.withValues(alpha: 0.14),
+              Colors.white.withValues(alpha: 0.0)
+            ],
+          ).createShader(Rect.fromCenter(
+              center: Offset.zero, width: cw, height: ch)));
+    canvas.drawRRect(
+        rr,
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.9);
   }
 
-  // ── Offline bars (signal bars crossed out) ────────────────────────────────
+  // ── Content bars helper ───────────────────────────────────────────────────
 
-  void _drawOfflineBars(Canvas canvas, double w, double h) {
-    // Small "no signal / offline" icon below the cloud on the left side.
-    final double bx = w * 0.18;
-    final double by = h * 0.73;
-    final double bw = w * 0.028; // bar width
-    final double gap = w * 0.018; // gap between bars
-    final List<double> heights = [h * 0.030, h * 0.050, h * 0.072];
-
-    for (int i = 0; i < 3; i++) {
-      final double barX = bx + i * (bw + gap);
-      final double barH = heights[i];
-      final double barTop = by - barH;
-
-      final Paint barPaint = Paint()
-        ..color = AppColors.secondary.withOpacity(0.30 + i * 0.15)
-        ..style = PaintingStyle.fill;
-      final RRect bar = RRect.fromRectAndRadius(
-        Rect.fromLTWH(barX, barTop, bw, barH),
-        Radius.circular(bw * 0.30),
+  void _contentBars(Canvas canvas, double maxW, double startY, int count,
+      Color color, double barH) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    for (int i = 0; i < count; i++) {
+      final bw = maxW * (i == count - 1 ? 0.60 : 1.0);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+              center: Offset(0, startY + i * barH * 2.0),
+              width: bw,
+              height: barH),
+          Radius.circular(barH / 2),
+        ),
+        paint,
       );
-      canvas.drawRRect(bar, barPaint);
     }
-
-    // Cross-out line through bars (indicating offline)
-    final Paint crossPaint = Paint()
-      ..color = AppColors.tertiary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.010
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawLine(
-      Offset(bx - w * 0.005, by + h * 0.012),
-      Offset(bx + 3 * bw + 2 * gap + w * 0.005, by - heights[2] - h * 0.012),
-      crossPaint,
-    );
-
-    // Cloud-upload arrow above bars (tertiary, indicating sync will happen)
-    final double arrowX = bx + (3 * bw + 2 * gap) / 2;
-    final double arrowBaseY = by - heights[2] - h * 0.055;
-    final Paint upArrowPaint = Paint()
-      ..color = AppColors.tertiary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.010
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final Path upArrow = Path()
-      ..moveTo(arrowX, arrowBaseY - h * 0.040)
-      ..lineTo(arrowX, arrowBaseY)
-      ..moveTo(arrowX - w * 0.018, arrowBaseY - h * 0.022)
-      ..lineTo(arrowX, arrowBaseY - h * 0.040)
-      ..lineTo(arrowX + w * 0.018, arrowBaseY - h * 0.022);
-
-    canvas.drawPath(upArrow, upArrowPaint);
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Glow ─────────────────────────────────────────────────────────────────
 
-  /// Convert degrees to radians.
-  static double _deg(double degrees) => degrees * math.pi / 180.0;
+  void _glow(Canvas canvas, Offset center, double r, Color color) {
+    canvas.drawCircle(
+      center,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [color, color.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromCircle(center: center, radius: r)),
+    );
+  }
+
+  // ── Sparkle ───────────────────────────────────────────────────────────────
+
+  void _sparkle(Canvas canvas, Offset c, double r, Color color) {
+    const arms = 4;
+    const inner = 0.32;
+    final path = Path();
+    for (int i = 0; i < arms * 2; i++) {
+      final a = (i * math.pi / arms) - math.pi / 2;
+      final rad = i.isEven ? r : r * inner;
+      final x = c.dx + rad * math.cos(a);
+      final y = c.dy + rad * math.sin(a);
+      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.fill);
+    canvas.drawCircle(
+        c, r * 1.6,
+        Paint()
+          ..color = color.withValues(alpha: 0.18)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+  }
+
+  static double _deg(double d) => d * math.pi / 180.0;
 
   @override
-  bool shouldRepaint(_OfflineFirstPainter old) => false;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Small data classes used only by the painter
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Circle {
-  const _Circle(this.cx, this.cy, this.r);
-  final double cx;
-  final double cy;
-  final double r;
-}
-
-class _DotSpec {
-  const _DotSpec(this.x, this.y, this.r, this.color, this.opacity);
-  final double x;
-  final double y;
-  final double r;
-  final Color color;
-  final double opacity;
+  bool shouldRepaint(_OfflineSyncScenePainter old) =>
+      old.floatT != floatT ||
+      old.syncT != syncT ||
+      old.dlT != dlT ||
+      old.sparkleT != sparkleT;
 }

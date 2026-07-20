@@ -90,6 +90,9 @@ flutter:
     - assets/images/icons/
     - assets/images/placeholders/
     - assets/animations/
+    - assets/founder/
+    
+    
 
   # To add assets to your application, add an assets section, like this:
   # assets:

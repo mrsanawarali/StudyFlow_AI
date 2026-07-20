@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:untitled/config/routing/route_paths.dart';
-import 'package:untitled/config/theme/app_colors.dart';
 import 'package:untitled/config/theme/app_spacing.dart';
-import 'package:untitled/config/theme/app_typography.dart';
+import 'package:untitled/features/onboarding/presentation/widgets/glass_nav_button.dart';
+import 'package:untitled/features/onboarding/presentation/widgets/gradient_cta_button.dart';
 import 'package:untitled/features/onboarding/presentation/widgets/illustrations/onboarding_illustration_1.dart';
 import 'package:untitled/features/onboarding/presentation/widgets/illustrations/onboarding_illustration_2.dart';
 import 'package:untitled/features/onboarding/presentation/widgets/illustrations/onboarding_illustration_3.dart';
 import 'package:untitled/features/onboarding/presentation/widgets/illustrations/onboarding_illustration_4.dart';
-import 'package:untitled/features/onboarding/presentation/widgets/onboarding_page_widget.dart';
-import 'package:untitled/features/onboarding/presentation/widgets/page_indicator.dart';
+import 'package:untitled/features/onboarding/presentation/widgets/onboarding_page1_widget.dart';
+import 'package:untitled/features/onboarding/presentation/widgets/onboarding_page2_widget.dart';
+import 'package:untitled/features/onboarding/presentation/widgets/onboarding_page3_widget.dart';
+import 'package:untitled/features/onboarding/presentation/widgets/onboarding_page4_widget.dart';
+import 'package:untitled/features/onboarding/presentation/widgets/founder_showcase_widget.dart';
+import 'package:untitled/features/onboarding/presentation/widgets/premium_page_indicator.dart';
+import 'package:untitled/features/splash/presentation/widgets/particle_layer.dart';
 import 'package:untitled/shared/widgets/buttons/primary_button.dart';
-import 'package:untitled/shared/widgets/buttons/secondary_button.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data model
@@ -54,8 +58,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   // ── Illustration entrance animation (per-page) ────────────────────────────
   late final List<AnimationController> _illustrationControllers;
-
   static const Duration _illustrationFadeDuration = Duration(milliseconds: 400);
+
+  // ── Particle layer controller (only active on page 1) ─────────────────────
+  late final AnimationController _particleCtrl;
 
   // ── Page transition constants ─────────────────────────────────────────────
   static const Duration _pageAnimDuration = Duration(milliseconds: 350);
@@ -65,7 +71,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   static final List<OnboardingPageData> _pages = [
     const OnboardingPageData(
       title: 'Study Smarter',
-      description: 'Organize semesters, subjects and notes in one place.',
+      description:
+          'Organize your semesters, subjects, notes and study materials in one intelligent workspace.',
       illustration: OnboardingIllustration1(),
     ),
     const OnboardingPageData(
@@ -84,6 +91,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           'Manage assignments, quizzes, schedules and grades effortlessly.',
       illustration: OnboardingIllustration4(),
     ),
+    // Page 5 — founder showcase (no illustration slot; handled specially)
+    OnboardingPageData(
+      title: 'Founder',
+      description: '',
+      illustration: Container(), // placeholder; page 5 renders its own full UI
+    ),
   ];
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -93,6 +106,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     super.initState();
     _pageController = PageController();
     _pageController.addListener(_onPageScroll);
+
     _illustrationControllers = List.generate(
       _pages.length,
       (_) => AnimationController(
@@ -100,13 +114,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         duration: _illustrationFadeDuration,
       ),
     );
-    // Play illustration entrance animation for the first page once the first
-    // frame has been laid out.
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) {
-        if (mounted) _illustrationControllers[0].forward();
-      },
-    );
+
+    _particleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 6000),
+    )..repeat();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _illustrationControllers[0].forward();
+    });
   }
 
   @override
@@ -116,13 +132,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     for (final c in _illustrationControllers) {
       c.dispose();
     }
+    _particleCtrl.dispose();
     super.dispose();
   }
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
 
-  /// Drives [PageIndicator] with continuous fractional progress while the user
-  /// swipes between pages.
   void _onPageScroll() => setState(() {});
 
   Future<void> _nextPage() async {
@@ -157,15 +172,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     _onPageSettled(_currentPage);
   }
 
-  /// Resets then plays the illustration entrance animation for [index] on the
-  /// next frame so the page has fully settled before the fade begins.
   void _onPageSettled(int index) {
     _illustrationControllers[index].reset();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) {
-        if (mounted) _illustrationControllers[index].forward();
-      },
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _illustrationControllers[index].forward();
+    });
   }
 
   void _navigateToLogin() => context.go(RoutePaths.login);
@@ -174,83 +185,162 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
+    final bool isPage1 = _currentPage == 0;
+    final bool isPage2 = _currentPage == 1;
+    final bool isPage3 = _currentPage == 2;
+    final bool isPage4 = _currentPage == 3;
+    final bool isPage5 = _currentPage == 4;
+    final bool usePremiumCta = isPage1 || isPage2 || isPage3 || isPage4;
+
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // ── Top bar ─────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
-                ),
-                child: Row(
-                  children: [
-                    if (_currentPage > 0)
-                      SecondaryButton(
-                        text: 'Back',
-                        width: 100,
-                        onPressed: _isAnimating ? null : _prevPage,
-                      ),
-                    const Spacer(),
-                    if (_currentPage < 3)
-                      TextButton(
-                        onPressed: _navigateToLogin,
-                        child: Text(
-                          'Skip',
-                          style: AppTypography.labelLarge.copyWith(
-                            color: AppColors.secondary,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              // ── PageView ────────────────────────────────────────────────
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: _pages.length,
-                  itemBuilder: (ctx, i) => OnboardingPageWidget(
-                    illustrationWidget: FadeTransition(
-                      opacity: _illustrationControllers[i]
-                          .drive(CurveTween(curve: Curves.easeIn)),
-                      child: _pages[i].illustration,
-                    ),
-                    title: _pages[i].title,
-                    description: _pages[i].description,
+        backgroundColor: const Color(0xFF0A0F2C),
+        body: Stack(
+          children: [
+            // ── Gradient background (always) ─────────────────────────────
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF0A0F2C),
+                      Color(0xFF1A0A3C),
+                    ],
                   ),
                 ),
               ),
+            ),
 
-              // ── Page indicator ───────────────────────────────────────────
-              PageIndicator(
-                pageCount: _pages.length,
-                currentPage: _pageController.hasClients
-                    ? (_pageController.page ?? 0.0)
-                    : 0.0,
+            // ── Particle layer (all pages) ───────────────────────────────
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ParticleLayer(controller: _particleCtrl),
               ),
+            ),
 
-              const SizedBox(height: AppSpacing.md),
+            // ── Main content ─────────────────────────────────────────────
+            SafeArea(
+              child: Column(
+                children: [
+                  // ── Top bar ────────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: Row(
+                      children: [
+                        if (_currentPage > 0)
+                          GlassNavButton(
+                            label: 'Back',
+                            icon: Icons.arrow_back_ios_new_rounded,
+                            onPressed: _isAnimating ? null : _prevPage,
+                          )
+                        else
+                          // Invisible placeholder to keep Skip right-aligned
+                          const SizedBox(width: 80),
 
-              // ── Primary action button ────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                child: PrimaryButton(
-                  text: _currentPage < 3 ? 'Next' : 'Get Started',
-                  onPressed: _isAnimating
-                      ? null
-                      : (_currentPage < 3 ? _nextPage : _navigateToLogin),
-                ),
+                        const Spacer(),
+
+                        if (_currentPage < 4)
+                          GlassNavButton(
+                            label: 'Skip',
+                            onPressed: _navigateToLogin,
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // ── PageView ───────────────────────────────────────────
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      itemCount: _pages.length,
+                      itemBuilder: (ctx, i) {
+                        final illuWidget = FadeTransition(
+                          opacity: _illustrationControllers[i]
+                              .drive(CurveTween(curve: Curves.easeIn)),
+                          child: _pages[i].illustration,
+                        );
+
+                        // Page 1 gets the premium layout widget
+                        if (i == 0) {
+                          return OnboardingPage1Widget(
+                            illustrationWidget: illuWidget,
+                          );
+                        }
+
+                        // Page 2 gets the premium offline-first layout widget
+                        if (i == 1) {
+                          return OnboardingPage2Widget(
+                            illustrationWidget: illuWidget,
+                          );
+                        }
+
+                        // Page 3 gets the premium AI assistant layout widget
+                        if (i == 2) {
+                          return OnboardingPage3Widget(
+                            illustrationWidget: illuWidget,
+                          );
+                        }
+
+                        // Page 4 gets the premium productivity layout widget
+                        if (i == 3) {
+                          return OnboardingPage4Widget(
+                            illustrationWidget: illuWidget,
+                            onContinue: _nextPage,
+                          );
+                        }
+
+                        // Page 5 — full-screen founder showcase
+                        return FounderShowcaseWidget(
+                          particleController: _particleCtrl,
+                          onGetStarted: _navigateToLogin,
+                        );
+                      },
+                    ),
+                  ),
+
+                  // ── Page indicator ─────────────────────────────────────
+                  PremiumPageIndicator(
+                    pageCount: _pages.length,
+                    currentPage: _pageController.hasClients
+                        ? (_pageController.page ?? 0.0)
+                        : 0.0,
+                  ),
+
+                  const SizedBox(height: AppSpacing.md),
+
+                  // ── CTA button (hidden on page 5 — has its own button) ──
+                  if (!isPage5)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg),
+                      child: usePremiumCta
+                          ? GradientCtaButton(
+                              text: isPage4 ? 'Continue' : 'Next',
+                              onPressed: _isAnimating
+                                  ? null
+                                  : (isPage4 ? _nextPage : _nextPage),
+                            )
+                          : PrimaryButton(
+                              text: _currentPage < 3 ? 'Next' : 'Get Started',
+                              onPressed: _isAnimating
+                                  ? null
+                                  : (_currentPage < 3
+                                      ? _nextPage
+                                      : _navigateToLogin),
+                            ),
+                    ),
+
+                  if (!isPage5) const SizedBox(height: AppSpacing.xl),
+                ],
               ),
-
-              const SizedBox(height: AppSpacing.xl),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

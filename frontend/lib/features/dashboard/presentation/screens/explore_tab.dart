@@ -98,28 +98,16 @@ class ExploreTab extends StatelessWidget {
                       title: 'Assignments',
                       subtitle: 'Pending & submitted tasks',
                       color: AppColors.warning,
-                      onTap: () => _comingSoon(
-                        context,
-                        title: 'Assignments',
-                        icon: Icons.assignment_outlined,
-                        color: AppColors.warning,
-                        description:
-                            'A dedicated assignments hub is coming soon. You can view assignments per subject today.',
-                      ),
+                      onTap: () =>
+                          context.push(RoutePaths.assignmentsList),
                     ),
                     _Module(
                       icon: Icons.quiz_outlined,
                       title: 'Quizzes',
                       subtitle: 'Practice quizzes & scores',
                       color: const Color(0xFFAB47BC),
-                      onTap: () => _comingSoon(
-                        context,
-                        title: 'Quizzes',
-                        icon: Icons.quiz_outlined,
-                        color: const Color(0xFFAB47BC),
-                        description:
-                            'A full quiz browser is coming soon. You can view quizzes per subject today.',
-                      ),
+                      onTap: () =>
+                          context.push(RoutePaths.quizzesList),
                     ),
                   ],
                 ),
@@ -139,14 +127,8 @@ class ExploreTab extends StatelessWidget {
                       title: 'AI Assistant',
                       subtitle: 'Ask AI anything about your studies',
                       color: AppColors.tertiary,
-                      onTap: () => _comingSoon(
-                        context,
-                        title: 'AI Assistant',
-                        icon: Icons.auto_awesome_outlined,
-                        color: AppColors.tertiary,
-                        description:
-                            'The full AI Study Assistant will launch in Phase 3. Summarize, quiz, and explain with one tap.',
-                      ),
+                      onTap: () =>
+                          context.push(RoutePaths.aiAssistant),
                     ),
                     _Module(
                       icon: Icons.picture_as_pdf_outlined,

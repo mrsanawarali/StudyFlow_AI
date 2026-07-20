@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:untitled/config/routing/route_paths.dart';
 import 'package:untitled/config/theme/app_colors.dart';
 import 'package:untitled/config/theme/app_radius.dart';
 import 'package:untitled/config/theme/app_spacing.dart';
@@ -76,7 +77,11 @@ class SubjectQuizzesScreen extends StatelessWidget {
                   ...upcoming.map((q) => Padding(
                         padding:
                             const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: _QuizCard(quiz: q),
+                        child: GestureDetector(
+                          onTap: () => context
+                              .push(RoutePaths.quizDetailPath(q.id)),
+                          child: _QuizCard(quiz: q),
+                        ),
                       )),
                   const SizedBox(height: AppSpacing.md),
                 ],
@@ -87,7 +92,11 @@ class SubjectQuizzesScreen extends StatelessWidget {
                   ...done.map((q) => Padding(
                         padding:
                             const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: _QuizCard(quiz: q),
+                        child: GestureDetector(
+                          onTap: () => context
+                              .push(RoutePaths.quizDetailPath(q.id)),
+                          child: _QuizCard(quiz: q),
+                        ),
                       )),
                 ],
               ],

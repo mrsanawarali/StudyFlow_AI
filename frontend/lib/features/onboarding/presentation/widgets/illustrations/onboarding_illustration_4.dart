@@ -1,437 +1,608 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:untitled/config/theme/app_colors.dart';
+import 'package:untitled/config/theme/app_spacing.dart';
 
-import '../../../../../config/theme/app_colors.dart';
-import '../../../../../config/theme/app_spacing.dart';
+// ─────────────────────────────────────────────────────────────────────────────
+// Public widget
+// ─────────────────────────────────────────────────────────────────────────────
 
-/// Onboarding illustration for page 4 — "Stay Productive" motif.
+/// Premium animated productivity dashboard for onboarding page 4.
 ///
-/// Renders a calendar grid in [AppColors.secondary] with three
-/// horizontal checklist rows and animated tick marks in [AppColors.tertiary].
-/// All coordinates are expressed as fractions of [size] so the illustration
-/// scales correctly at any resolution.
-class OnboardingIllustration4 extends StatelessWidget {
+/// Floating glass cards arranged around a central progress ring:
+///   • Circular progress ring (centre) — animated fill
+///   • Weekly chart card (top-left) — bar heights animate
+///   • GPA card (top-right) — floating
+///   • Timetable card (mid-left) — floating
+///   • Assignment card (mid-right) — animated progress bar
+///   • Calendar widget (bottom-left) — floating
+///   • Achievement badge (bottom-right) — pulse glow
+///   • Study streak counter (bottom-centre) — floating
+///
+/// Drop-in replacement — same class name, same constructor.
+class OnboardingIllustration4 extends StatefulWidget {
   const OnboardingIllustration4({super.key});
 
   @override
+  State<OnboardingIllustration4> createState() =>
+      _OnboardingIllustration4State();
+}
+
+class _OnboardingIllustration4State extends State<OnboardingIllustration4>
+    with TickerProviderStateMixin {
+  late final AnimationController _floatCtrl;    // 3.0 s reverse
+  late final AnimationController _progressCtrl; // 2.4 s reverse (ring + bar)
+  late final AnimationController _pulseCtrl;    // 1.8 s reverse (badge glow)
+  late final AnimationController _sparkCtrl;    // 2.0 s reverse
+  late final AnimationController _enterCtrl;
+  late final Animation<double> _enterFade;
+
+  @override
+  void initState() {
+    super.initState();
+    _floatCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 3000))
+      ..repeat(reverse: true);
+    _progressCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2400))
+      ..repeat(reverse: true);
+    _pulseCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1800))
+      ..repeat(reverse: true);
+    _sparkCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2000))
+      ..repeat(reverse: true);
+    _enterCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 650));
+    _enterFade = CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOut);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) { if (mounted) _enterCtrl.forward(); });
+  }
+
+  @override
+  void dispose() {
+    _floatCtrl.dispose();
+    _progressCtrl.dispose();
+    _pulseCtrl.dispose();
+    _sparkCtrl.dispose();
+    _enterCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: AppSpacing.xxxl * 3, // 192 dp
-      width: double.infinity,
-      child: CustomPaint(painter: _StayProductivePainter()),
+    return FadeTransition(
+      opacity: _enterFade,
+      child: SizedBox(
+        height: AppSpacing.xxxl * 3,
+        width: double.infinity,
+        child: AnimatedBuilder(
+          animation: Listenable.merge(
+              [_floatCtrl, _progressCtrl, _pulseCtrl, _sparkCtrl]),
+          builder: (_, __) => CustomPaint(
+            painter: _DashboardPainter(
+              floatT: _floatCtrl.value,
+              progressT: _progressCtrl.value,
+              pulseT: _pulseCtrl.value,
+              sparkT: _sparkCtrl.value,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _StayProductivePainter extends CustomPainter {
+// ─────────────────────────────────────────────────────────────────────────────
+// Painter
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DashboardPainter extends CustomPainter {
+  const _DashboardPainter({
+    required this.floatT,
+    required this.progressT,
+    required this.pulseT,
+    required this.sparkT,
+  });
+
+  final double floatT;
+  final double progressT;
+  final double pulseT;
+  final double sparkT;
+
+  double _fy(double phase, {double amp = 5.5}) =>
+      amp * math.sin(((floatT + phase) % 1.0) * math.pi);
+
   @override
   void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double h = size.height;
+    final w = size.width;
+    final h = size.height;
+    final cx = w * 0.50;
+    final cy = h * 0.46;
 
-    // ── Shared paint objects ──────────────────────────────────────────────
-    final Paint secondaryFill = Paint()
-      ..color = AppColors.secondary
-      ..style = PaintingStyle.fill;
+    // Background glows
+    _glow(canvas, Offset(cx, cy), w * 0.26,
+        AppColors.secondary.withValues(alpha: 0.10));
+    _glow(canvas, Offset(w * 0.18, h * 0.22), w * 0.16,
+        AppColors.tertiary.withValues(alpha: 0.08));
+    _glow(canvas, Offset(w * 0.84, h * 0.72), w * 0.14,
+        AppColors.secondaryLight.withValues(alpha: 0.07));
 
-    final Paint secondaryStroke = Paint()
-      ..color = AppColors.secondary
+    // ── Weekly chart — top-left (phase 0.20) ────────────────────────────
+    canvas.save();
+    canvas.translate(w * 0.13, h * 0.16 + _fy(0.20));
+    canvas.rotate(-0.14);
+    _drawWeeklyChart(canvas, w, h);
+    canvas.restore();
+
+    // ── GPA card — top-right (phase 0.60) ────────────────────────────────
+    canvas.save();
+    canvas.translate(w * 0.87, h * 0.14 + _fy(0.60));
+    canvas.rotate(0.16);
+    _drawGpaCard(canvas, w, h);
+    canvas.restore();
+
+    // ── Timetable card — mid-left (phase 0.40) ───────────────────────────
+    canvas.save();
+    canvas.translate(w * 0.10, h * 0.50 + _fy(0.40));
+    canvas.rotate(-0.10);
+    _drawTimetableCard(canvas, w, h);
+    canvas.restore();
+
+    // ── Assignment card — mid-right (phase 0.75) ─────────────────────────
+    canvas.save();
+    canvas.translate(w * 0.90, h * 0.46 + _fy(0.75));
+    canvas.rotate(0.12);
+    _drawAssignmentCard(canvas, w, h);
+    canvas.restore();
+
+    // ── Calendar widget — bottom-left (phase 0.55) ───────────────────────
+    canvas.save();
+    canvas.translate(w * 0.14, h * 0.78 + _fy(0.55));
+    canvas.rotate(-0.16);
+    _drawCalendarCard(canvas, w, h);
+    canvas.restore();
+
+    // ── Achievement badge — bottom-right (pulse) ─────────────────────────
+    canvas.save();
+    canvas.translate(w * 0.86, h * 0.78 + _fy(0.85));
+    canvas.rotate(0.18);
+    _drawAchievementBadge(canvas, w, h);
+    canvas.restore();
+
+    // ── Study streak — bottom-centre (phase 0.30) ───────────────────────
+    canvas.save();
+    canvas.translate(cx, h * 0.88 + _fy(0.30, amp: 3.5));
+    _drawStreakCounter(canvas, w, h);
+    canvas.restore();
+
+    // ── Central progress ring (drawn last, on top) ───────────────────────
+    _drawProgressRing(canvas, w, h, cx, cy);
+
+    // Sparkles
+    final sr = 0.010 + sparkT * 0.005;
+    _sparkle(canvas, Offset(w * 0.58, h * 0.06),
+        w * sr, AppColors.tertiary.withValues(alpha: 0.85));
+    _sparkle(canvas, Offset(w * 0.25, h * 0.08),
+        w * sr * 0.70, AppColors.secondaryLight.withValues(alpha: 0.75));
+    _sparkle(canvas, Offset(w * 0.92, h * 0.32),
+        w * sr * 0.65, AppColors.tertiary.withValues(alpha: 0.70));
+    _sparkle(canvas, Offset(w * 0.06, h * 0.62),
+        w * sr * 0.55, AppColors.secondaryLight.withValues(alpha: 0.60));
+  }
+
+  // ── Central progress ring ────────────────────────────────────────────────
+
+  void _drawProgressRing(
+      Canvas canvas, double w, double h, double cx, double cy) {
+    final r = w * 0.105;
+    final sweepAngle = (0.45 + progressT * 0.40) * 2 * math.pi;
+
+    // Outer pulse halo
+    canvas.drawCircle(Offset(cx, cy), r * (1.25 + pulseT * 0.12),
+        Paint()
+          ..color =
+              AppColors.tertiary.withValues(alpha: 0.08 + pulseT * 0.06)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+
+    // Track ring
+    canvas.drawCircle(Offset(cx, cy), r,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.08)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w * 0.022);
+
+    // Filled arc
+    final arcPaint = Paint()
+      ..shader = SweepGradient(
+        startAngle: -math.pi / 2,
+        endAngle: -math.pi / 2 + 2 * math.pi,
+        colors: [AppColors.tertiary, AppColors.secondary, AppColors.tertiary],
+        stops: const [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r))
       ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.008
+      ..strokeWidth = w * 0.022
       ..strokeCap = StrokeCap.round;
 
-    final Paint secondaryLightFill = Paint()
-      ..color = AppColors.secondaryLight.withOpacity(0.15)
-      ..style = PaintingStyle.fill;
+    canvas.drawArc(
+        Rect.fromCircle(center: Offset(cx, cy), radius: r),
+        -math.pi / 2,
+        sweepAngle,
+        false,
+        arcPaint);
 
-    final Paint tertiaryFill = Paint()
-      ..color = AppColors.tertiary
-      ..style = PaintingStyle.fill;
+    // Glass card background
+    canvas.drawCircle(Offset(cx, cy), r * 0.80,
+        Paint()
+          ..color = AppColors.primary.withValues(alpha: 0.75)
+          ..style = PaintingStyle.fill);
+    canvas.drawCircle(Offset(cx, cy), r * 0.80,
+        Paint()
+          ..color = AppColors.tertiary.withValues(alpha: 0.20)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0);
 
-    final Paint tertiaryStroke = Paint()
-      ..color = AppColors.tertiary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.009
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final Paint outlinePaint = Paint()
-      ..color = AppColors.outlineVariant
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.004;
-
-    final Paint surfaceVariantFill = Paint()
-      ..color = AppColors.surfaceVariant
-      ..style = PaintingStyle.fill;
-
-    // ── Calendar card bounds ──────────────────────────────────────────────
-    // The card is centred horizontally and occupies most of the canvas.
-    final double cardLeft = w * 0.06;
-    final double cardRight = w * 0.94;
-    final double cardTop = h * 0.04;
-    final double cardBottom = h * 0.96;
-    final double cardWidth = cardRight - cardLeft;
-    final double cardHeight = cardBottom - cardTop;
-    final double radius = w * 0.04;
-
-    // Drop shadow (soft)
-    final Paint shadowPaint = Paint()
-      ..color = AppColors.secondary.withOpacity(0.12)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(cardLeft + w * 0.01, cardTop + h * 0.02,
-            cardRight + w * 0.01, cardBottom + h * 0.02),
-        Radius.circular(radius),
+    // Percentage text
+    final pct = (45 + progressT * 40).round();
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '$pct%',
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.95),
+          fontSize: r * 0.55,
+          fontWeight: FontWeight.w800,
+        ),
       ),
-      shadowPaint,
-    );
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(cx - tp.width / 2, cy - tp.height / 2));
+  }
 
-    // Card background
-    final Paint cardBg = Paint()
-      ..color = AppColors.surface
-      ..style = PaintingStyle.fill;
-    final RRect cardRRect = RRect.fromRectAndRadius(
-      Rect.fromLTRB(cardLeft, cardTop, cardRight, cardBottom),
-      Radius.circular(radius),
-    );
-    canvas.drawRRect(cardRRect, cardBg);
-    canvas.drawRRect(cardRRect, outlinePaint);
+  // ── Weekly chart card ────────────────────────────────────────────────────
 
-    // ── Calendar header ───────────────────────────────────────────────────
-    final double headerBottom = cardTop + cardHeight * 0.20;
-    final RRect headerRRect = RRect.fromRectAndCorners(
-      Rect.fromLTRB(cardLeft, cardTop, cardRight, headerBottom),
-      topLeft: Radius.circular(radius),
-      topRight: Radius.circular(radius),
-    );
-    canvas.drawRRect(headerRRect, secondaryFill);
+  void _drawWeeklyChart(Canvas canvas, double w, double h) {
+    final cw = w * 0.28;
+    final ch = h * 0.28;
+    _glassRect(canvas, cw, ch, 10,
+        AppColors.secondary.withValues(alpha: 0.18),
+        AppColors.secondaryLight.withValues(alpha: 0.28));
 
-    // Month label area (three small rounded rectangles — decorative text stand-in)
-    final double labelY = cardTop + cardHeight * 0.07;
+    // Bars (Mon-Fri)
+    final barW = cw * 0.10;
+    final maxBarH = ch * 0.42;
+    final animated = [0.60, 0.80, 0.50, 0.90 + progressT * 0.10, 0.68];
+    for (int i = 0; i < 5; i++) {
+      final bh = maxBarH * animated[i];
+      final bx = -cw * 0.34 + i * (barW + cw * 0.04);
+      final by = ch * 0.10;
+      final isActive = i == 3;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(bx, by - bh, barW, bh),
+          Radius.circular(barW / 2),
+        ),
+        Paint()
+          ..color = isActive
+              ? AppColors.tertiary.withValues(alpha: 0.90)
+              : AppColors.secondary.withValues(alpha: 0.55)
+          ..style = PaintingStyle.fill,
+      );
+      if (isActive) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(bx, by - bh, barW, bh),
+            Radius.circular(barW / 2),
+          ),
+          Paint()
+            ..color = AppColors.tertiary.withValues(alpha: 0.30)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+      }
+    }
+    // Label
+    _label(canvas, 'Weekly', cw * 0.40, -ch * 0.38, 9.0, AppColors.secondaryLight);
+  }
+
+  // ── GPA card ─────────────────────────────────────────────────────────────
+
+  void _drawGpaCard(Canvas canvas, double w, double h) {
+    final cw = w * 0.20;
+    final ch = h * 0.20;
+    _glassRect(canvas, cw, ch, 10,
+        AppColors.tertiary.withValues(alpha: 0.16),
+        AppColors.tertiaryLight.withValues(alpha: 0.30));
+
+    _label(canvas, 'GPA', 0, -ch * 0.22, 9.0, AppColors.tertiaryLight);
+
+    // Big GPA number
+    final gpa = (3.4 + progressT * 0.45).toStringAsFixed(1);
+    final tp = TextPainter(
+      text: TextSpan(
+        text: gpa,
+        style: TextStyle(
+          color: AppColors.tertiary,
+          fontSize: cw * 0.45,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(-tp.width / 2, ch * 0.04));
+  }
+
+  // ── Timetable card ────────────────────────────────────────────────────────
+
+  void _drawTimetableCard(Canvas canvas, double w, double h) {
+    final cw = w * 0.22;
+    final ch = h * 0.26;
+    _glassRect(canvas, cw, ch, 10,
+        AppColors.secondary.withValues(alpha: 0.18),
+        AppColors.secondaryLight.withValues(alpha: 0.26));
+
+    _label(canvas, 'Timetable', 0, -ch * 0.38, 8.5, AppColors.secondaryLight);
+
+    // 3 time slots
+    final slotColors = [
+      AppColors.secondary.withValues(alpha: 0.65),
+      AppColors.tertiary.withValues(alpha: 0.60),
+      AppColors.secondary.withValues(alpha: 0.45),
+    ];
     for (int i = 0; i < 3; i++) {
-      final double lx = cardLeft + cardWidth * (0.12 + i * 0.10);
+      final sy = -ch * 0.14 + i * ch * 0.23;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(lx, labelY, cardWidth * 0.07, h * 0.025),
-          const Radius.circular(3),
-        ),
-        Paint()
-          ..color = AppColors.onPrimary.withOpacity(0.7)
-          ..style = PaintingStyle.fill,
-      );
-    }
-
-    // Two chevron arrows (prev/next month) in the header
-    _drawChevron(canvas, Offset(cardLeft + cardWidth * 0.08, cardTop + cardHeight * 0.10),
-        w * 0.018, false, AppColors.onPrimary.withOpacity(0.9));
-    _drawChevron(canvas, Offset(cardRight - cardWidth * 0.08, cardTop + cardHeight * 0.10),
-        w * 0.018, true, AppColors.onPrimary.withOpacity(0.9));
-
-    // Ring/clip tabs at top of calendar (two small rectangles protruding above header)
-    for (final double ringX in [cardLeft + cardWidth * 0.28, cardLeft + cardWidth * 0.72]) {
-      final Paint ringPaint = Paint()
-        ..color = AppColors.secondaryDark
-        ..style = PaintingStyle.fill;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(ringX - w * 0.025, cardTop - h * 0.02, w * 0.05, h * 0.035),
-          Radius.circular(w * 0.012),
-        ),
-        ringPaint,
-      );
-    }
-
-    // ── Weekday labels (Sun–Sat) ─────────────────────────────────────────
-    final double labelRowY = headerBottom + cardHeight * 0.005;
-    final double labelRowH = cardHeight * 0.085;
-    canvas.drawRect(
-      Rect.fromLTWH(cardLeft, labelRowY, cardWidth, labelRowH),
-      surfaceVariantFill,
-    );
-
-    const int cols = 7;
-    final double colW = cardWidth / cols;
-    for (int c = 0; c < cols; c++) {
-      final double cx = cardLeft + colW * c + colW * 0.5;
-      final double cy = labelRowY + labelRowH * 0.5;
-      // Small rounded rect as day-letter stand-in
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset(cx, cy), width: colW * 0.45, height: labelRowH * 0.38),
-          const Radius.circular(3),
-        ),
-        Paint()
-          ..color = (c == 0 || c == 6)
-              ? AppColors.secondary.withOpacity(0.45)
-              : AppColors.onSurfaceVariant.withOpacity(0.35)
-          ..style = PaintingStyle.fill,
-      );
-    }
-
-    // ── Calendar grid (5 rows × 7 cols) ──────────────────────────────────
-    final double gridTop = labelRowY + labelRowH;
-    final double gridBottom = cardTop + cardHeight * 0.62;
-    final double gridH = gridBottom - gridTop;
-    const int rows = 5;
-    final double rowH = gridH / rows;
-
-    // Horizontal grid lines
-    for (int r = 0; r <= rows; r++) {
-      final double y = gridTop + rowH * r;
-      canvas.drawLine(
-        Offset(cardLeft, y),
-        Offset(cardRight, y),
-        outlinePaint,
-      );
-    }
-    // Vertical grid lines
-    for (int c = 0; c <= cols; c++) {
-      final double x = cardLeft + colW * c;
-      canvas.drawLine(
-        Offset(x, gridTop),
-        Offset(x, gridBottom),
-        outlinePaint,
-      );
-    }
-
-    // Day number circles/cells — draw a selection of them
-    // Start offset: skip first 3 cells (month starts on Wed)
-    const int startOffset = 3;
-    const int daysInMonth = 31;
-    // Highlight today: day 15 (0-indexed slot 15+3-1 = 17)
-    const int todayDay = 15;
-
-    for (int d = 1; d <= daysInMonth; d++) {
-      final int slot = startOffset + d - 1;
-      final int r = slot ~/ cols;
-      final int c = slot % cols;
-      if (r >= rows) break;
-      final double cx = cardLeft + colW * c + colW * 0.5;
-      final double cy = gridTop + rowH * r + rowH * 0.5;
-
-      if (d == todayDay) {
-        // Today: filled circle in secondary
-        canvas.drawCircle(Offset(cx, cy), math.min(colW, rowH) * 0.32, secondaryFill);
-        // White dot label
-        canvas.drawCircle(
-          Offset(cx, cy),
-          math.min(colW, rowH) * 0.14,
-          Paint()
-            ..color = AppColors.onPrimary
-            ..style = PaintingStyle.fill,
-        );
-      } else {
-        // Regular day dot
-        final Color dotColor = (c == 0 || c == 6)
-            ? AppColors.secondary.withOpacity(0.3)
-            : AppColors.onSurface.withOpacity(0.18);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(
-                center: Offset(cx, cy),
-                width: colW * 0.4,
-                height: rowH * 0.32),
-            const Radius.circular(2),
-          ),
-          Paint()
-            ..color = dotColor
-            ..style = PaintingStyle.fill,
-        );
-      }
-    }
-
-    // Small event dots on a few days (decorative)
-    for (final int eventDay in [3, 8, 21, 26]) {
-      final int slot = startOffset + eventDay - 1;
-      final int r = slot ~/ cols;
-      final int c = slot % cols;
-      if (r >= rows) continue;
-      final double cx = cardLeft + colW * c + colW * 0.5;
-      final double cy = gridTop + rowH * r + rowH * 0.82;
-      canvas.drawCircle(
-        Offset(cx, cy),
-        math.min(colW, rowH) * 0.09,
-        tertiaryFill,
-      );
-    }
-
-    // ── Checklist section ─────────────────────────────────────────────────
-    // Three rows below the calendar grid inside the card
-    final double checklistTop = gridBottom + cardHeight * 0.025;
-    final double checklistRowH = (cardBottom - checklistTop - cardHeight * 0.035) / 3;
-
-    for (int row = 0; row < 3; row++) {
-      final double ry = checklistTop + row * checklistRowH;
-      final double rowCentreY = ry + checklistRowH * 0.5;
-
-      // Row background (alternating)
-      if (row.isEven) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(cardLeft + w * 0.03, ry + checklistRowH * 0.08,
-                cardWidth - w * 0.06, checklistRowH * 0.84),
-            const Radius.circular(6),
-          ),
-          secondaryLightFill,
-        );
-      }
-
-      // Checkbox border
-      final double cbSize = checklistRowH * 0.46;
-      final double cbX = cardLeft + cardWidth * 0.07;
-      final double cbY = rowCentreY - cbSize * 0.5;
-      final RRect cbRRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(cbX, cbY, cbSize, cbSize),
-        Radius.circular(cbSize * 0.22),
-      );
-
-      if (row < 2) {
-        // Checked rows (0 and 1): filled tertiary box + tick
-        canvas.drawRRect(cbRRect, tertiaryFill);
-        _drawTick(canvas, Offset(cbX + cbSize * 0.5, cbY + cbSize * 0.5), cbSize * 0.32,
-            AppColors.onTertiary);
-      } else {
-        // Unchecked row (2): outline only
-        canvas.drawRRect(cbRRect, secondaryStroke);
-      }
-
-      // Task text stand-in (two rounded rects of different widths)
-      final double textX = cbX + cbSize + cardWidth * 0.04;
-      final double textMaxW = cardWidth * 0.55;
-      final double lineH = checklistRowH * 0.16;
-
-      // Primary line
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(textX, rowCentreY - lineH * 1.3,
-              textMaxW * (row == 2 ? 0.75 : 1.0), lineH),
-          const Radius.circular(3),
-        ),
-        Paint()
-          ..color = (row < 2)
-              ? AppColors.onSurfaceVariant.withOpacity(0.35)
-              : AppColors.onSurface.withOpacity(0.55)
-          ..style = PaintingStyle.fill,
-      );
-      // Secondary line (shorter)
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(textX, rowCentreY + lineH * 0.15, textMaxW * 0.5, lineH * 0.8),
-          const Radius.circular(3),
-        ),
-        Paint()
-          ..color = AppColors.outlineVariant.withOpacity(0.6)
-          ..style = PaintingStyle.fill,
-      );
-
-      // Priority tag on the right
-      final Paint tagPaint = Paint()
-        ..color = row == 0
-            ? AppColors.tertiary.withOpacity(0.25)
-            : row == 1
-                ? AppColors.secondary.withOpacity(0.20)
-                : AppColors.warning.withOpacity(0.20)
-        ..style = PaintingStyle.fill;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(cardRight - cardWidth * 0.20,
-              rowCentreY - checklistRowH * 0.18, cardWidth * 0.14,
-              checklistRowH * 0.36),
+          Rect.fromLTWH(-cw * 0.38, sy, cw * 0.76, ch * 0.16),
           const Radius.circular(4),
         ),
-        tagPaint,
-      );
-    }
-
-    // ── Divider between grid and checklist ────────────────────────────────
-    canvas.drawLine(
-      Offset(cardLeft + w * 0.04, checklistTop),
-      Offset(cardRight - w * 0.04, checklistTop),
-      Paint()
-        ..color = AppColors.outlineVariant
-        ..strokeWidth = w * 0.003,
-    );
-
-    // ── Floating accent badge (top-right outside card) ────────────────────
-    // A small rounded card showing "3 tasks" in tertiary
-    final double badgeX = cardRight - cardWidth * 0.30;
-    final double badgeY = cardTop - h * 0.005;
-    final double badgeW = cardWidth * 0.26;
-    final double badgeH = h * 0.095;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(badgeX, badgeY - badgeH, badgeW, badgeH),
-        Radius.circular(w * 0.025),
-      ),
-      Paint()
-        ..color = AppColors.tertiary.withOpacity(0.18)
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(badgeX, badgeY - badgeH, badgeW, badgeH),
-        Radius.circular(w * 0.025),
-      ),
-      Paint()
-        ..color = AppColors.tertiary.withOpacity(0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w * 0.004,
-    );
-    // Three mini dots inside badge (stand-in for "3 tasks" text)
-    for (int i = 0; i < 3; i++) {
-      canvas.drawCircle(
-        Offset(badgeX + badgeW * (0.25 + i * 0.25), badgeY - badgeH * 0.5),
-        w * 0.012,
-        tertiaryFill,
+        Paint()..color = slotColors[i]..style = PaintingStyle.fill,
       );
     }
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Assignment progress card ──────────────────────────────────────────────
 
-  /// Draws a tick (✓) mark centred at [centre] with arm length [size].
-  void _drawTick(Canvas canvas, Offset centre, double size, Color color) {
-    final Paint p = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.55
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+  void _drawAssignmentCard(Canvas canvas, double w, double h) {
+    final cw = w * 0.22;
+    final ch = h * 0.24;
+    _glassRect(canvas, cw, ch, 10,
+        AppColors.tertiary.withValues(alpha: 0.14),
+        AppColors.tertiaryLight.withValues(alpha: 0.26));
 
-    final Path path = Path()
-      ..moveTo(centre.dx - size, centre.dy)
-      ..lineTo(centre.dx - size * 0.2, centre.dy + size * 0.8)
-      ..lineTo(centre.dx + size, centre.dy - size * 0.8);
-    canvas.drawPath(path, p);
+    _label(canvas, 'Assignments', 0, -ch * 0.36, 8.0, AppColors.tertiaryLight);
+
+    // Progress bar track
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(-cw * 0.38, ch * 0.06, cw * 0.76, ch * 0.12),
+        const Radius.circular(4),
+      ),
+      Paint()..color = Colors.white.withValues(alpha: 0.10),
+    );
+    // Fill
+    final fillW = cw * 0.76 * (0.30 + progressT * 0.50);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(-cw * 0.38, ch * 0.06, fillW, ch * 0.12),
+        const Radius.circular(4),
+      ),
+      Paint()
+        ..shader = LinearGradient(
+          colors: [AppColors.secondary, AppColors.tertiary],
+        ).createShader(Rect.fromLTWH(-cw * 0.38, 0, cw * 0.76, 1)),
+    );
+    // Percent text
+    final pct = (30 + progressT * 50).round();
+    _label(canvas, '$pct%', cw * 0.28, ch * 0.04, 9.0, AppColors.tertiary);
   }
 
-  /// Draws a simple chevron arrow centred at [centre].
-  /// [pointRight] = true → '›', false → '‹'.
-  void _drawChevron(Canvas canvas, Offset centre, double size, bool pointRight,
-      Color color) {
-    final Paint p = Paint()
-      ..color = color
+  // ── Calendar card ─────────────────────────────────────────────────────────
+
+  void _drawCalendarCard(Canvas canvas, double w, double h) {
+    final cw = w * 0.20;
+    final ch = h * 0.22;
+    _glassRect(canvas, cw, ch, 10,
+        AppColors.secondary.withValues(alpha: 0.16),
+        AppColors.secondaryLight.withValues(alpha: 0.26));
+
+    // Header strip
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(-cw / 2 + 3, -ch / 2 + 3, cw - 6, ch * 0.26),
+        const Radius.circular(8),
+      ),
+      Paint()..color = AppColors.secondary.withValues(alpha: 0.55),
+    );
+
+    // Dot grid
+    final dp = Paint()
+      ..color = Colors.white.withValues(alpha: 0.45)
+      ..style = PaintingStyle.fill;
+    final ap = Paint()
+      ..color = AppColors.tertiary
+      ..style = PaintingStyle.fill;
+    for (int r = 0; r < 3; r++) {
+      for (int c = 0; c < 4; c++) {
+        final ox = -cw * 0.32 + c * cw * 0.21;
+        final oy = -ch * 0.04 + r * ch * 0.18;
+        canvas.drawCircle(
+            Offset(ox, oy), cw * 0.055, r == 1 && c == 2 ? ap : dp);
+      }
+    }
+  }
+
+  // ── Achievement badge ─────────────────────────────────────────────────────
+
+  void _drawAchievementBadge(Canvas canvas, double w, double h) {
+    final r = w * 0.080;
+    // Pulse glow
+    canvas.drawCircle(Offset.zero, r * (1.3 + pulseT * 0.18),
+        Paint()
+          ..color = AppColors.tertiary.withValues(alpha: 0.18 + pulseT * 0.10)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7));
+
+    // Hexagon shape
+    final path = Path();
+    for (int i = 0; i < 6; i++) {
+      final a = math.pi / 3 * i - math.pi / 2;
+      final x = r * math.cos(a);
+      final y = r * math.sin(a);
+      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    path.close();
+    canvas.drawPath(
+        path,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.tertiary.withValues(alpha: 0.70),
+              AppColors.secondary.withValues(alpha: 0.55),
+            ],
+          ).createShader(Rect.fromCircle(center: Offset.zero, radius: r)));
+    canvas.drawPath(
+        path,
+        Paint()
+          ..color = AppColors.tertiary.withValues(alpha: 0.60)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0);
+
+    // Trophy icon
+    final ip = Paint()
+      ..color = Colors.white.withValues(alpha: 0.90)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.5
+      ..strokeWidth = r * 0.16
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
+    final trophy = Path()
+      ..moveTo(-r * 0.28, -r * 0.42)
+      ..lineTo(-r * 0.28, r * 0.08)
+      ..quadraticBezierTo(-r * 0.28, r * 0.36, 0, r * 0.36)
+      ..quadraticBezierTo(r * 0.28, r * 0.36, r * 0.28, r * 0.08)
+      ..lineTo(r * 0.28, -r * 0.42)
+      ..close();
+    canvas.drawPath(trophy, ip);
+    canvas.drawLine(Offset(-r * 0.18, r * 0.42), Offset(r * 0.18, r * 0.42),
+        ip..strokeWidth = r * 0.14);
+  }
 
-    final double dx = size * 0.5;
-    final double dy = size * 0.65;
-    final Path path = pointRight
-        ? (Path()
-          ..moveTo(centre.dx - dx, centre.dy - dy)
-          ..lineTo(centre.dx + dx, centre.dy)
-          ..lineTo(centre.dx - dx, centre.dy + dy))
-        : (Path()
-          ..moveTo(centre.dx + dx, centre.dy - dy)
-          ..lineTo(centre.dx - dx, centre.dy)
-          ..lineTo(centre.dx + dx, centre.dy + dy));
-    canvas.drawPath(path, p);
+  // ── Study streak counter ──────────────────────────────────────────────────
+
+  void _drawStreakCounter(Canvas canvas, double w, double h) {
+    final cw = w * 0.30;
+    final ch = h * 0.12;
+    _glassRect(canvas, cw, ch, 16,
+        AppColors.tertiary.withValues(alpha: 0.16),
+        AppColors.tertiaryLight.withValues(alpha: 0.30));
+
+    // Flame icon
+    final flamePaint = Paint()
+      ..color = AppColors.tertiary.withValues(alpha: 0.90)
+      ..style = PaintingStyle.fill;
+    final flame = Path()
+      ..moveTo(-cw * 0.28, ch * 0.20)
+      ..quadraticBezierTo(-cw * 0.30, -ch * 0.22, -cw * 0.16, -ch * 0.30)
+      ..quadraticBezierTo(-cw * 0.08, ch * 0.04, -cw * 0.10, ch * 0.20)
+      ..quadraticBezierTo(-cw * 0.10, -ch * 0.10, -cw * 0.22, -ch * 0.10)
+      ..quadraticBezierTo(-cw * 0.22, ch * 0.10, -cw * 0.28, ch * 0.20)
+      ..close();
+    canvas.drawPath(flame, flamePaint);
+
+    // "14 Day Streak" label area
+    final tp = TextPainter(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: '14',
+            style: TextStyle(
+              color: AppColors.tertiary,
+              fontSize: ch * 0.55,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          TextSpan(
+            text: ' Day Streak',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.80),
+              fontSize: ch * 0.38,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(-cw * 0.14, -tp.height / 2));
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  void _glassRect(Canvas canvas, double cw, double ch, double cr,
+      Color fill, Color border) {
+    final rr = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: cw, height: ch),
+        Radius.circular(cr));
+    canvas.drawRRect(rr, Paint()..color = fill..style = PaintingStyle.fill);
+    canvas.drawRRect(
+        rr,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.center,
+            colors: [
+              Colors.white.withValues(alpha: 0.14),
+              Colors.white.withValues(alpha: 0.0)
+            ],
+          ).createShader(
+              Rect.fromCenter(center: Offset.zero, width: cw, height: ch)));
+    canvas.drawRRect(
+        rr,
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.9);
+  }
+
+  void _label(Canvas canvas, String text, double x, double y,
+      double fontSize, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(
+          text: text,
+          style: TextStyle(
+              color: color, fontSize: fontSize, fontWeight: FontWeight.w600)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(x - tp.width / 2, y - tp.height / 2));
+  }
+
+  void _glow(Canvas canvas, Offset c, double r, Color color) =>
+      canvas.drawCircle(c, r,
+          Paint()
+            ..shader = RadialGradient(
+                colors: [color, color.withValues(alpha: 0.0)])
+                .createShader(Rect.fromCircle(center: c, radius: r)));
+
+  void _sparkle(Canvas canvas, Offset c, double r, Color color) {
+    const arms = 4;
+    final path = Path();
+    for (int i = 0; i < arms * 2; i++) {
+      final a = (i * math.pi / arms) - math.pi / 2;
+      final rad = i.isEven ? r : r * 0.32;
+      final x = c.dx + rad * math.cos(a);
+      final y = c.dy + rad * math.sin(a);
+      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.fill);
+    canvas.drawCircle(c, r * 1.6,
+        Paint()
+          ..color = color.withValues(alpha: 0.18)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
   }
 
   @override
-  bool shouldRepaint(_StayProductivePainter old) => false;
+  bool shouldRepaint(_DashboardPainter old) =>
+      old.floatT != floatT || old.progressT != progressT ||
+      old.pulseT != pulseT || old.sparkT != sparkT;
 }

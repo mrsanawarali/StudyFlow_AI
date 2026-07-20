@@ -281,8 +281,8 @@ class _QuickActions extends StatelessWidget {
         icon: Icons.quiz_outlined,
         label: 'Quizzes',
         color: const Color(0xFFAB47BC),
-        onTap: () =>
-            context.push(RoutePaths.subjectQuizzesPath(subjectId)),
+        onTap: () => context
+            .push(RoutePaths.subjectQuizzesPath(subjectId)),
       ),
       _QA(
         icon: Icons.auto_awesome_outlined,
