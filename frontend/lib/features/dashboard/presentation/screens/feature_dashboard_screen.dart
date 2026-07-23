@@ -1,6 +1,9 @@
+// ignore_for_file: deprecated_member_use
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:untitled/config/theme/app_colors.dart';
-import 'package:untitled/config/theme/app_radius.dart';
 import 'package:untitled/config/theme/app_spacing.dart';
 import 'package:untitled/config/theme/app_typography.dart';
 import 'calculator_tab.dart';
@@ -78,76 +81,13 @@ class _FeatureDashboardScreenState extends State<FeatureDashboardScreen>
   }
 }
 
-// ── Custom bottom navigation bar ──────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Premium Floating Bottom Navigation Bar
+// Navigation logic, routes and tab pages are completely unchanged.
+// Only the visual / animation layer is replaced.
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _BottomNav extends StatelessWidget {
-  const _BottomNav({
-    required this.currentIndex,
-    required this.onTap,
-  });
-
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-
-  static const List<_NavItem> _items = [
-    _NavItem(
-        icon: Icons.home_outlined,
-        activeIcon: Icons.home_rounded,
-        label: 'Home'),
-    _NavItem(
-        icon: Icons.calendar_month_outlined,
-        activeIcon: Icons.calendar_month_rounded,
-        label: 'Timetable'),
-    _NavItem(
-        icon: Icons.explore_outlined,
-        activeIcon: Icons.explore_rounded,
-        label: 'Explore'),
-    _NavItem(
-        icon: Icons.calculate_outlined,
-        activeIcon: Icons.calculate_rounded,
-        label: 'Calculator'),
-    _NavItem(
-        icon: Icons.person_outline_rounded,
-        activeIcon: Icons.person_rounded,
-        label: 'Profile'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: const Border(
-          top: BorderSide(color: AppColors.outlineVariant),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            children: List.generate(
-              _items.length,
-              (i) => _NavButton(
-                item: _items[i],
-                isSelected: i == currentIndex,
-                onTap: () => onTap(i),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
+// Nav item data
 class _NavItem {
   const _NavItem({
     required this.icon,
@@ -159,7 +99,102 @@ class _NavItem {
   final String label;
 }
 
-class _NavButton extends StatelessWidget {
+// Floating shell — adds bottom margin + rounded card, owns no state
+class _BottomNav extends StatelessWidget {
+  const _BottomNav({
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  static const _items = [
+    _NavItem(
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home_rounded,
+      label: 'Home',
+    ),
+    _NavItem(
+      icon: Icons.calendar_month_outlined,
+      activeIcon: Icons.calendar_month_rounded,
+      label: 'Timetable',
+    ),
+    _NavItem(
+      icon: Icons.explore_outlined,
+      activeIcon: Icons.explore_rounded,
+      label: 'Explore',
+    ),
+    _NavItem(
+      icon: Icons.calculate_outlined,
+      activeIcon: Icons.calculate_rounded,
+      label: 'Calculator',
+    ),
+    _NavItem(
+      icon: Icons.person_outline_rounded,
+      activeIcon: Icons.person_rounded,
+      label: 'Profile',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    // SafeArea bottom padding so the bar clears the home indicator on iOS
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppSpacing.md,
+        right: AppSpacing.md,
+        bottom: (bottomPad > 0 ? bottomPad : AppSpacing.md),
+      ),
+      child: Container(
+        height: 68,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: const Color(0xFFE8EAED),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.10),
+              blurRadius: 24,
+              spreadRadius: 0,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: AppColors.secondary.withOpacity(0.07),
+              blurRadius: 32,
+              spreadRadius: 0,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: Row(
+            children: List.generate(
+              _items.length,
+              (i) => _NavButton(
+                item: _items[i],
+                isSelected: i == currentIndex,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  onTap(i);
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Individual animated tab button
+class _NavButton extends StatefulWidget {
   const _NavButton({
     required this.item,
     required this.isSelected,
@@ -171,52 +206,174 @@ class _NavButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_NavButton> createState() => _NavButtonState();
+}
+
+class _NavButtonState extends State<_NavButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  // Spring-like scale curve for the pill pop
+  late final Animation<double> _scaleAnim;
+  // Icon vertical lift when selected
+  late final Animation<double> _liftAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+
+    _scaleAnim = Tween<double>(begin: 0.75, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        // Mimics iOS spring: overshoot then settle
+        curve: const _SpringCurve(),
+      ),
+    );
+
+    _liftAnim = Tween<double>(begin: 0.0, end: -2.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.0, 0.55, curve: Curves.easeOut),
+      ),
+    );
+
+    if (widget.isSelected) _ctrl.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(_NavButton old) {
+    super.didUpdateWidget(old);
+    if (widget.isSelected && !old.isSelected) {
+      _ctrl.forward(from: 0.0);
+    } else if (!widget.isSelected && old.isSelected) {
+      _ctrl.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Pill indicator behind active icon
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: isSelected ? 48 : 0,
-                height: isSelected ? 28 : 0,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary.withValues(alpha: 0.10)
-                      : Colors.transparent,
-                  borderRadius: AppRadius.roundedFull,
-                ),
-                child: isSelected
-                    ? Icon(item.activeIcon,
-                        color: AppColors.primary, size: 20)
-                    : const SizedBox.shrink(),
-              ),
-              if (!isSelected) ...[
-                Icon(item.icon, color: AppColors.onSurfaceVariant, size: 22),
-              ],
-              const SizedBox(height: 2),
-              Text(
-                item.label,
-                style: AppTypography.labelSmall.copyWith(
-                  color: isSelected
-                      ? AppColors.primary
-                      : AppColors.onSurfaceVariant,
-                  fontWeight:
-                      isSelected ? FontWeight.w700 : FontWeight.w400,
-                  fontSize: 10,
-                ),
-              ),
-            ],
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(30),
+            splashColor: AppColors.secondary.withOpacity(0.08),
+            highlightColor: AppColors.secondary.withOpacity(0.04),
+            child: AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, __) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // ── Icon area ──────────────────────────────────
+                      Transform.translate(
+                        offset: Offset(0, _liftAnim.value),
+                        child: widget.isSelected
+                            // Selected: blue pill with white icon, spring-scales in
+                            ? Transform.scale(
+                                scale: _scaleAnim.value,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        AppColors.secondary,
+                                        Color(0xFF6BB8FF),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.secondary
+                                            .withOpacity(
+                                                0.38 * _scaleAnim.value),
+                                        blurRadius: 10,
+                                        spreadRadius: 0,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    widget.item.activeIcon,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              )
+                            // Unselected: plain icon, no pill
+                            : Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 5),
+                                child: Icon(
+                                  widget.item.icon,
+                                  color: const Color(0xFF6B7280),
+                                  size: 20,
+                                ),
+                              ),
+                      ),
+
+                      const SizedBox(height: 3),
+
+                      // ── Label ──────────────────────────────────────
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOut,
+                        style: AppTypography.labelSmall.copyWith(
+                          color: widget.isSelected
+                              ? AppColors.secondary
+                              : const Color(0xFF9CA3AF),
+                          fontWeight: widget.isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          fontSize: 10,
+                          letterSpacing: widget.isSelected ? 0.1 : 0,
+                        ),
+                        child: Text(widget.item.label),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// iOS-style spring curve — damped oscillation overshoot then settle
+// Uses dart:math imported as [math] at the top of the file.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SpringCurve extends Curve {
+  const _SpringCurve();
+
+  @override
+  double transformInternal(double t) {
+    // Damped spring: 1 - e^(-damping·t) · cos(frequency·t)
+    const double damping   = 12.0;
+    const double frequency = 20.0;
+    return 1.0 - math.exp(-damping * t) * math.cos(frequency * t);
   }
 }
