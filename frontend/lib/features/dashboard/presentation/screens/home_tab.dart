@@ -200,9 +200,9 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Search bar laps over the wave — negative margin pulls it up
+                      // Search bar — slight downward offset so it sits below the wave
                       Transform.translate(
-                        offset: const Offset(0, -10),
+                        offset: const Offset(0, 8),
                         child: _PremiumSearchBar(),
                       ),
                       const SizedBox(height: AppSpacing.md),
