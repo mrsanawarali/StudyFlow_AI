@@ -56,9 +56,8 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   late final Animation<double> _headerFade, _headerSlide;
   late final Animation<double> _contentFade;
 
-  // ── Scroll-driven collapse ───────────────────────────────────────────────
+  // ScrollController — no longer used for collapse; kept for future needs
   final ScrollController _scrollCtrl = ScrollController();
-  double _scrollOffset = 0;
 
   // ── Verse auto-rotation ──────────────────────────────────────────────────
   late final AnimationController _verseCtrl; // drives fade-out/in
@@ -114,14 +113,6 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     _bellScale = Tween<double>(begin: 1.0, end: 1.10).animate(
         CurvedAnimation(parent: _bellCtrl, curve: Curves.easeInOut));
 
-    // Scroll listener for collapse
-    _scrollCtrl.addListener(() {
-      final raw = _scrollCtrl.offset.clamp(0.0, 130.0);
-      if ((raw - _scrollOffset).abs() > 0.5) {
-        setState(() => _scrollOffset = raw);
-      }
-    });
-
     // Schedule verse rotation every 5.5 s
     _scheduleVerseRotation();
 
@@ -157,14 +148,18 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // ── Collapse factor 0.0 (expanded) → 1.0 (collapsed) ───────────────────
-  double get _cf => (_scrollOffset / 130.0).clamp(0.0, 1.0);
-
   @override
   Widget build(BuildContext context) {
     final user          = MockDashboardData.user;
     final activeSubject = MockDashboardData.subjects.first;
     final topPad        = MediaQuery.of(context).padding.top;
+
+    // Fixed extents — SliverPersistentHeader owns the collapse arithmetic
+    // via shrinkOffset; we never pass a dynamic maxH.
+    const double kExpandedContent = 210.0;
+    const double kCollapsedContent = 72.0;
+    final double minH = topPad + kCollapsedContent;
+    final double maxH = topPad + kExpandedContent;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -172,10 +167,6 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
         animation: Listenable.merge(
             [_enterCtrl, _verseCtrl, _waveBg, _waveFg, _bellCtrl]),
         builder: (context, _) {
-          // Header height collapses: 210 → 86 (including topPad)
-          final headerH = (topPad + 210.0 - _cf * 124.0).clamp(
-              topPad + 86.0, topPad + 210.0);
-
           return CustomScrollView(
             controller: _scrollCtrl,
             slivers: [
@@ -183,21 +174,21 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
               SliverPersistentHeader(
                 pinned: true,
                 delegate: _HeaderDelegate(
-                  minH: topPad + 68,
-                  maxH: headerH,
-                  child: _PremiumHeader(
-                    user: user,
-                    greeting: _greeting,
-                    cf: _cf,
-                    headerFade: _headerFade.value,
-                    headerSlide: _headerSlide.value,
-                    verse: _kVerses[_verseIndex],
-                    verseFade: _verseFade.value,
-                    waveBgT: _waveBg.value,
-                    waveFgT: _waveFg.value,
-                    bellScale: _bellScale.value,
-                    topPad: topPad,
-                  ),
+                  minH: minH,
+                  maxH: maxH,
+                  // Build-time animation values passed via the delegate.
+                  // shrinkOffset drives the collapse; animation values
+                  // drive the entrance/verse/wave/bell effects.
+                  headerFade:  _headerFade.value,
+                  headerSlide: _headerSlide.value,
+                  verse:       _kVerses[_verseIndex],
+                  verseFade:   _verseFade.value,
+                  waveBgT:     _waveBg.value,
+                  waveFgT:     _waveFg.value,
+                  bellScale:   _bellScale.value,
+                  user:        user,
+                  greeting:    _greeting,
+                  topPad:      topPad,
                 ),
               ),
 
@@ -304,25 +295,70 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
 // ─────────────────────────────────────────────────────────────────────────────
 // SliverPersistentHeader delegate
 // ─────────────────────────────────────────────────────────────────────────────
+// SliverPersistentHeader delegate — fixed extents, shrinkOffset drives collapse
+// ─────────────────────────────────────────────────────────────────────────────
 class _HeaderDelegate extends SliverPersistentHeaderDelegate {
   const _HeaderDelegate({
     required this.minH,
     required this.maxH,
-    required this.child,
+    required this.headerFade,
+    required this.headerSlide,
+    required this.verse,
+    required this.verseFade,
+    required this.waveBgT,
+    required this.waveFgT,
+    required this.bellScale,
+    required this.user,
+    required this.greeting,
+    required this.topPad,
   });
+
   final double minH;
   final double maxH;
-  final Widget child;
+  final double headerFade;
+  final double headerSlide;
+  final ({String arabic, String urdu}) verse;
+  final double verseFade;
+  final double waveBgT;
+  final double waveFgT;
+  final double bellScale;
+  final MockUser user;
+  final String greeting;
+  final double topPad;
 
   @override double get minExtent => minH;
   @override double get maxExtent => maxH;
 
   @override
-  Widget build(BuildContext ctx, double shrink, bool overlaps) => child;
+  Widget build(BuildContext ctx, double shrinkOffset, bool overlaps) {
+    // cf: 0 = fully expanded, 1 = fully collapsed
+    final cf = (shrinkOffset / (maxH - minH)).clamp(0.0, 1.0);
+    return ClipRect(
+      child: _PremiumHeader(
+        user: user,
+        greeting: greeting,
+        cf: cf,
+        headerFade: headerFade,
+        headerSlide: headerSlide,
+        verse: verse,
+        verseFade: verseFade,
+        waveBgT: waveBgT,
+        waveFgT: waveFgT,
+        bellScale: bellScale,
+        topPad: topPad,
+      ),
+    );
+  }
 
   @override
   bool shouldRebuild(_HeaderDelegate old) =>
-      old.minH != minH || old.maxH != maxH;
+      old.headerFade  != headerFade  ||
+      old.headerSlide != headerSlide ||
+      old.verseFade   != verseFade   ||
+      old.waveBgT     != waveBgT     ||
+      old.waveFgT     != waveFgT     ||
+      old.bellScale   != bellScale   ||
+      old.verse       != verse;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
