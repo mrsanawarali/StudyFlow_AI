@@ -145,7 +145,7 @@ class _BottomNav extends StatelessWidget {
         bottom: bottomPad > 0 ? bottomPad + 6 : 16,
       ),
       child: Container(
-        height: 72,
+        height: 78,
         decoration: BoxDecoration(
           color: _kSurface,
           borderRadius: BorderRadius.circular(38),
@@ -275,7 +275,7 @@ class _NavButtonState extends State<_NavButton>
               animation: _ctrl,
               builder: (_, __) => Padding(
                 padding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                    const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -287,7 +287,7 @@ class _NavButtonState extends State<_NavButton>
                           : _buildBareIcon(),
                     ),
 
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 2),
 
                     // ── Label ─────────────────────────────────────
                     AnimatedDefaultTextStyle(
