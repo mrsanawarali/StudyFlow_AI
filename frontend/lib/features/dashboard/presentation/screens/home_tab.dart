@@ -9,13 +9,9 @@ import 'package:untitled/config/theme/app_typography.dart';
 import 'package:untitled/features/dashboard/data/mock_dashboard_data.dart';
 import 'package:untitled/features/dashboard/presentation/widgets/activity_timeline.dart';
 import 'package:untitled/features/dashboard/presentation/widgets/ai_assistant_card.dart';
-import 'package:untitled/features/dashboard/presentation/widgets/continue_studying_card.dart';
 import 'package:untitled/features/dashboard/presentation/widgets/deadline_card.dart';
-import 'package:untitled/features/dashboard/presentation/widgets/quick_actions_grid.dart';
 import 'package:untitled/features/dashboard/presentation/widgets/recent_note_card.dart';
 import 'package:untitled/features/dashboard/presentation/widgets/section_header.dart';
-import 'package:untitled/features/dashboard/presentation/widgets/stat_card.dart';
-import 'package:untitled/features/dashboard/presentation/widgets/timetable_card.dart';
 import 'package:untitled/features/dashboard/presentation/widgets/weekly_progress_chart.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,7 +147,6 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final user          = MockDashboardData.user;
-    final activeSubject = MockDashboardData.subjects.first;
     final topPad        = MediaQuery.of(context).padding.top;
 
     // Fixed extents.
@@ -207,31 +202,17 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                       ),
                       const SizedBox(height: AppSpacing.md),
 
-                      // Overview
-                      _SectionTitle(title: 'Overview', onSeeAll: () {}),
+                      // TODAY'S FOCUS
+                      _SectionTitle(title: "Today's Focus"),
                       const SizedBox(height: AppSpacing.md),
-                      _StatsGrid(),
+                      const _TodaysFocusSection(),
                       const SizedBox(height: AppSpacing.xl),
 
-                      // Continue studying
-                      _SectionTitle(
-                          title: 'Continue Studying', onSeeAll: () {}),
-                      const SizedBox(height: AppSpacing.md),
-                      ContinueStudyingCard(subject: activeSubject),
-                      const SizedBox(height: AppSpacing.xl),
-
-                      // Quick actions
-                      _SectionTitle(title: 'Quick Actions'),
-                      const SizedBox(height: AppSpacing.md),
-                      const QuickActionsGrid(),
-                      const SizedBox(height: AppSpacing.xl),
-
-                      // Timetable
+                      // TODAY'S TIMETABLE
                       _SectionTitle(
                           title: "Today's Timetable", onSeeAll: () {}),
                       const SizedBox(height: AppSpacing.md),
-                      TimetableSection(
-                          entries: MockDashboardData.todayTimetable),
+                      const _PremiumTimetableTable(),
                       const SizedBox(height: AppSpacing.xl),
 
                       // Deadlines
@@ -990,48 +971,331 @@ class _SectionTitle extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stats grid with entrance animation
+// TODAY'S FOCUS — staggered animated task cards
 // ─────────────────────────────────────────────────────────────────────────────
-class _StatsGrid extends StatefulWidget {
+
+class _TodaysFocusSection extends StatefulWidget {
+  const _TodaysFocusSection();
+
   @override
-  State<_StatsGrid> createState() => _StatsGridState();
+  State<_TodaysFocusSection> createState() => _TodaysFocusSectionState();
 }
-class _StatsGridState extends State<_StatsGrid>
+
+class _TodaysFocusSectionState extends State<_TodaysFocusSection>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final List<Animation<double>> _fades;
   late final List<Animation<double>> _slides;
 
-  static const _cards = [
-    (label: 'Subjects',    value: '5',  icon: Icons.layers_outlined,
-     color: Color(0xFF2563EB)),
-    (label: 'Notes',       value: '63', icon: Icons.description_outlined,
-     color: Color(0xFF50E3C2)),
-    (label: 'Assignments', value: '12', icon: Icons.assignment_outlined,
-     color: Color(0xFFFFA726)),
-    (label: 'Quizzes',     value: '8',  icon: Icons.quiz_outlined,
-     color: Color(0xFFAB47BC)),
-  ];
+  // Track done state locally (UI only)
+  final List<bool> _done = List.generate(
+      MockDashboardData.todayFocus.length, (_) => false);
+
+  static Color _priorityColor(FocusPriority p) {
+    switch (p) {
+      case FocusPriority.assignment: return const Color(0xFFF97316);
+      case FocusPriority.quiz:       return const Color(0xFF7C3AED);
+      case FocusPriority.reading:    return const Color(0xFF2563EB);
+      case FocusPriority.ai:         return const Color(0xFF059669);
+    }
+  }
+
+  static String _priorityLabel(FocusPriority p) {
+    switch (p) {
+      case FocusPriority.assignment: return 'Assignment';
+      case FocusPriority.quiz:       return 'Quiz';
+      case FocusPriority.reading:    return 'Reading';
+      case FocusPriority.ai:         return 'AI Pick';
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 700));
+        vsync: this, duration: const Duration(milliseconds: 720));
 
-    _fades = List.generate(4, (i) {
-      final s = 0.10 * i;
-      return Tween<double>(begin: 0.0, end: 1.0).animate(
-          CurvedAnimation(parent: _ctrl,
-              curve: Interval(s, s + 0.45, curve: Curves.easeOut)));
+    final n = MockDashboardData.todayFocus.length;
+    _fades = List.generate(n, (i) {
+      final s = i * 0.10;
+      return Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(
+          parent: _ctrl,
+          curve: Interval(s, s + 0.45, curve: Curves.easeOut)));
     });
-    _slides = List.generate(4, (i) {
-      final s = 0.10 * i;
-      return Tween<double>(begin: 18.0, end: 0.0).animate(
-          CurvedAnimation(parent: _ctrl,
-              curve: Interval(s, s + 0.45, curve: Curves.easeOut)));
+    _slides = List.generate(n, (i) {
+      final s = i * 0.10;
+      return Tween<double>(begin: 20.0, end: 0.0).animate(CurvedAnimation(
+          parent: _ctrl,
+          curve: Interval(s, s + 0.45, curve: Curves.easeOut)));
     });
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tasks = MockDashboardData.todayFocus;
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Column(
+        children: List.generate(tasks.length, (i) {
+          final task  = tasks[i];
+          final color = _priorityColor(task.priority);
+          return Opacity(
+            opacity: _fades[i].value,
+            child: Transform.translate(
+              offset: Offset(0, _slides[i].value),
+              child: Padding(
+                padding: EdgeInsets.only(
+                    left: AppSpacing.lg,
+                    right: AppSpacing.lg,
+                    bottom: i < tasks.length - 1 ? 10 : 0),
+                child: _FocusTaskCard(
+                  task: task,
+                  color: color,
+                  label: _priorityLabel(task.priority),
+                  isDone: _done[i],
+                  onToggle: () => setState(() => _done[i] = !_done[i]),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+// ── Single focus task card ─────────────────────────────────────────────────
+class _FocusTaskCard extends StatefulWidget {
+  const _FocusTaskCard({
+    required this.task,
+    required this.color,
+    required this.label,
+    required this.isDone,
+    required this.onToggle,
+  });
+  final MockFocusTask task;
+  final Color color;
+  final String label;
+  final bool isDone;
+  final VoidCallback onToggle;
+
+  @override
+  State<_FocusTaskCard> createState() => _FocusTaskCardState();
+}
+
+class _FocusTaskCardState extends State<_FocusTaskCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          widget.onToggle();
+        },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.975 : 1.0,
+          duration: const Duration(milliseconds: 110),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.055),
+                  blurRadius: 12, offset: const Offset(0, 3)),
+                BoxShadow(
+                  color: widget.color.withOpacity(0.06),
+                  blurRadius: 16, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Left accent line
+                Container(
+                  width: 4,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    color: widget.isDone
+                        ? widget.color.withOpacity(0.30)
+                        : widget.color,
+                    borderRadius: const BorderRadius.only(
+                      topLeft:    Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+
+                // Icon chip
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: widget.color.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(widget.task.icon,
+                      color: widget.isDone
+                          ? widget.color.withOpacity(0.40)
+                          : widget.color,
+                      size: 18),
+                ),
+                const SizedBox(width: 12),
+
+                // Text
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            // Priority badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: widget.color.withOpacity(0.10),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                widget.label,
+                                style: AppTypography.labelSmall.copyWith(
+                                  color: widget.color,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (widget.task.time != null) ...[
+                              const SizedBox(width: 6),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.access_time_rounded,
+                                      size: 10,
+                                      color: AppColors.onSurfaceVariant
+                                          .withOpacity(0.70)),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    widget.task.time!,
+                                    style: AppTypography.labelSmall.copyWith(
+                                      color: AppColors.onSurfaceVariant
+                                          .withOpacity(0.70),
+                                      fontSize: 9,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.task.title,
+                          style: AppTypography.titleSmall.copyWith(
+                            color: widget.isDone
+                                ? AppColors.onSurfaceVariant
+                                : AppColors.onSurface,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            decoration: widget.isDone
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.task.subtitle,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Checkbox
+                GestureDetector(
+                  onTap: widget.onToggle,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 22, height: 22,
+                    decoration: BoxDecoration(
+                      color: widget.isDone
+                          ? widget.color
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: widget.isDone
+                            ? widget.color
+                            : AppColors.outlineVariant,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: widget.isDone
+                        ? const Icon(Icons.check_rounded,
+                            color: Colors.white, size: 13)
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 14),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PREMIUM TIMETABLE TABLE
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PremiumTimetableTable extends StatefulWidget {
+  const _PremiumTimetableTable();
+
+  @override
+  State<_PremiumTimetableTable> createState() =>
+      _PremiumTimetableTableState();
+}
+
+class _PremiumTimetableTableState extends State<_PremiumTimetableTable>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _fade;
+  late final Animation<double> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 500));
+    _fade  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<double>(begin: 16.0, end: 0.0).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _ctrl.forward();
     });
@@ -1042,122 +1306,291 @@ class _StatsGridState extends State<_StatsGrid>
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: AnimatedBuilder(
-        animation: _ctrl,
-        builder: (_, __) => GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.30,
-          ),
-          itemCount: _cards.length,
-          itemBuilder: (_, i) {
-            final c = _cards[i];
-            return Opacity(
-              opacity: _fades[i].value,
-              child: Transform.translate(
-                offset: Offset(0, _slides[i].value),
-                child: _PremiumStatCard(
-                  label: c.label,
-                  value: c.value,
-                  icon: c.icon,
-                  color: c.color,
+    final entries = MockDashboardData.todayTimetable;
+
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Opacity(
+        opacity: _fade.value,
+        child: Transform.translate(
+          offset: Offset(0, _slide.value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: AppColors.outlineVariant, width: 1.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 16, offset: const Offset(0, 4)),
+                  BoxShadow(
+                    color: _kAccent.withOpacity(0.04),
+                    blurRadius: 20, offset: const Offset(0, 6)),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── Table header ──────────────────────────────
+                    _TableHeader(),
+                    const Divider(height: 1, thickness: 1,
+                        color: Color(0xFFEFF0F2)),
+
+                    // ── Table rows ────────────────────────────────
+                    ...List.generate(entries.length, (i) => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _TableRow(entry: entries[i], isEven: i.isEven),
+                        if (i < entries.length - 1)
+                          const Divider(height: 1, thickness: 1,
+                              indent: 16, endIndent: 16,
+                              color: Color(0xFFF3F4F6)),
+                      ],
+                    )),
+                  ],
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Premium stat card
-// ─────────────────────────────────────────────────────────────────────────────
-class _PremiumStatCard extends StatefulWidget {
-  const _PremiumStatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-  final String label, value;
-  final IconData icon;
-  final Color color;
-
+// ── Header row ──────────────────────────────────────────────────────────────
+class _TableHeader extends StatelessWidget {
   @override
-  State<_PremiumStatCard> createState() => _PremiumStatCardState();
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFF8F9FC),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      child: Row(
+        children: [
+          // Teacher col — 26 %
+          Expanded(
+            flex: 26,
+            child: _HeaderCell(label: 'Teacher',
+                icon: Icons.person_outline_rounded),
+          ),
+          // Subject col — 30 %
+          Expanded(
+            flex: 30,
+            child: _HeaderCell(label: 'Subject',
+                icon: Icons.book_outlined),
+          ),
+          // Time col — 24 %
+          Expanded(
+            flex: 24,
+            child: _HeaderCell(label: 'Time',
+                icon: Icons.access_time_rounded),
+          ),
+          // Room col — 20 %
+          Expanded(
+            flex: 20,
+            child: _HeaderCell(label: 'Room',
+                icon: Icons.meeting_room_outlined),
+          ),
+        ],
+      ),
+    );
+  }
 }
-class _PremiumStatCardState extends State<_PremiumStatCard> {
-  bool _pressed = false;
+
+class _HeaderCell extends StatelessWidget {
+  const _HeaderCell({required this.label, required this.icon});
+  final String label;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp:   (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        child: AnimatedScale(
-          scale: _pressed ? 0.96 : 1.0,
-          duration: const Duration(milliseconds: 120),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: widget.color.withOpacity(0.12), width: 1.0),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.color.withOpacity(0.10),
-                  blurRadius: 16, spreadRadius: 0,
-                  offset: const Offset(0, 4)),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 8, offset: const Offset(0, 2)),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(
-                    color: widget.color.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12,
+            color: AppColors.onSurfaceVariant.withOpacity(0.70)),
+        const SizedBox(width: 4),
+        Text(label,
+            style: AppTypography.labelSmall.copyWith(
+              color: AppColors.onSurfaceVariant,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            )),
+      ],
+    );
+  }
+}
+
+// ── Data row ─────────────────────────────────────────────────────────────────
+class _TableRow extends StatelessWidget {
+  const _TableRow({required this.entry, required this.isEven});
+  final MockTimetableEntry entry;
+  final bool isEven;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = entry.isActive;
+    final bg = isActive
+        ? _kAccent.withOpacity(0.05)
+        : (isEven ? AppColors.surface : const Color(0xFFFAFAFC));
+
+    return Container(
+      color: bg,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Active blue indicator bar
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 3,
+            height: 62,
+            color: isActive ? _kAccent : Colors.transparent,
+          ),
+
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 13, vertical: 12),
+              child: Row(
+                children: [
+                  // Teacher (26 %)
+                  Expanded(
+                    flex: 26,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Avatar circle with initials
+                        Container(
+                          width: 28, height: 28,
+                          decoration: BoxDecoration(
+                            color: entry.color.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              entry.professorInitials,
+                              style: AppTypography.labelSmall.copyWith(
+                                color: entry.color,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            entry.professor,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.onSurface,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Icon(widget.icon, color: widget.color, size: 18),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  widget.value,
-                  style: AppTypography.headlineSmall.copyWith(
-                    color: AppColors.onSurface,
-                    fontSize: 22, height: 1.0,
-                    fontWeight: FontWeight.w800,
+
+                  // Subject (30 %)
+                  Expanded(
+                    flex: 30,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 3, height: 28,
+                          decoration: BoxDecoration(
+                            color: entry.color,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            entry.subject,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: isActive
+                                  ? _kAccent
+                                  : AppColors.onSurface,
+                              fontSize: 11,
+                              fontWeight: isActive
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  widget.label,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                    fontSize: 11,
+
+                  // Time (24 %)
+                  Expanded(
+                    flex: 24,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          entry.startTime,
+                          style: AppTypography.labelSmall.copyWith(
+                            color: AppColors.onSurface,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          entry.endTime,
+                          style: AppTypography.labelSmall.copyWith(
+                            color: AppColors.onSurfaceVariant,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+
+                  // Room (20 %)
+                  Expanded(
+                    flex: 20,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? _kAccent.withOpacity(0.10)
+                            : AppColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        entry.room,
+                        style: AppTypography.labelSmall.copyWith(
+                          color: isActive
+                              ? _kAccent
+                              : AppColors.onSurfaceVariant,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

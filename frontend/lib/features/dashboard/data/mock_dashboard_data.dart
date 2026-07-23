@@ -79,6 +79,9 @@ class MockTimetableEntry {
     required this.endTime,
     required this.room,
     required this.color,
+    required this.professor,
+    required this.professorInitials,
+    this.isActive = false,
     this.isNext = false,
   });
   final String subject;
@@ -86,7 +89,32 @@ class MockTimetableEntry {
   final String endTime;
   final String room;
   final Color color;
+  final String professor;
+  final String professorInitials;
+  final bool isActive;
   final bool isNext;
+}
+
+// Today's Focus task model
+enum FocusPriority { assignment, quiz, reading, ai }
+
+class MockFocusTask {
+  const MockFocusTask({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.priority,
+    required this.icon,
+    this.time,
+    this.isDone = false,
+  });
+  final String id;
+  final String title;
+  final String subtitle;
+  final FocusPriority priority;
+  final IconData icon;
+  final String? time;
+  final bool isDone;
 }
 
 class MockActivityEntry {
@@ -245,28 +273,70 @@ class MockDashboardData {
       endTime: '09:30',
       room: 'CS-Lab 3',
       color: Color(0xFF4A90E2),
+      professor: 'Ahmed Khan',
+      professorInitials: 'AK',
+      isActive: true,
     ),
     MockTimetableEntry(
-      subject: 'Database Systems',
+      subject: 'OOP',
       startTime: '10:00',
       endTime: '11:30',
-      room: 'Room 204',
-      color: Color(0xFFFFA726),
+      room: 'B-204',
+      color: Color(0xFF50E3C2),
+      professor: 'Usman Ali',
+      professorInitials: 'UA',
       isNext: true,
     ),
     MockTimetableEntry(
-      subject: 'Software Engineering',
-      startTime: '13:00',
-      endTime: '14:30',
-      room: 'Room 112',
-      color: Color(0xFFAB47BC),
+      subject: 'Database Systems',
+      startTime: '12:00',
+      endTime: '01:30',
+      room: 'A-103',
+      color: Color(0xFFFFA726),
+      professor: 'Bilal Ahmed',
+      professorInitials: 'BA',
     ),
     MockTimetableEntry(
       subject: 'Computer Networks',
-      startTime: '15:00',
-      endTime: '16:30',
+      startTime: '03:00',
+      endTime: '04:30',
       room: 'CS-Lab 1',
       color: Color(0xFFEF5350),
+      professor: 'Imran Shah',
+      professorInitials: 'IS',
+    ),
+  ];
+
+  static const List<MockFocusTask> todayFocus = [
+    MockFocusTask(
+      id: 'f1',
+      title: 'Complete Data Structures Assignment',
+      subtitle: 'Binary Search Tree Implementation',
+      priority: FocusPriority.assignment,
+      icon: Icons.assignment_outlined,
+      time: 'Due Tomorrow',
+    ),
+    MockFocusTask(
+      id: 'f2',
+      title: 'OOP Quiz',
+      subtitle: 'Chapter 4 – Inheritance & Polymorphism',
+      priority: FocusPriority.quiz,
+      icon: Icons.quiz_outlined,
+      time: 'Today at 2:00 PM',
+    ),
+    MockFocusTask(
+      id: 'f3',
+      title: 'Read Chapter 5',
+      subtitle: 'Database Systems – Normalization',
+      priority: FocusPriority.reading,
+      icon: Icons.menu_book_outlined,
+    ),
+    MockFocusTask(
+      id: 'f4',
+      title: 'AI Recommendation',
+      subtitle: 'Revise Operating Systems – Process Scheduling',
+      priority: FocusPriority.ai,
+      icon: Icons.auto_awesome_outlined,
     ),
   ];
 
