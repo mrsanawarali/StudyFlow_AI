@@ -154,9 +154,10 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     final activeSubject = MockDashboardData.subjects.first;
     final topPad        = MediaQuery.of(context).padding.top;
 
-    // Fixed extents — SliverPersistentHeader owns the collapse arithmetic
-    // via shrinkOffset; we never pass a dynamic maxH.
-    const double kExpandedContent = 210.0;
+    // Fixed extents.
+    // Expanded  = topPad + verse(~72) + gap(10) + greeting(56) + wave(22) = ~160
+    // Collapsed = topPad + greeting row (56) + small bottom pad (16) = ~72
+    const double kExpandedContent  = 165.0;
     const double kCollapsedContent = 72.0;
     final double minH = topPad + kCollapsedContent;
     final double maxH = topPad + kExpandedContent;
@@ -199,11 +200,12 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: AppSpacing.lg),
-
-                      // Premium search bar
-                      _PremiumSearchBar(),
-                      const SizedBox(height: AppSpacing.xl),
+                      // Search bar laps over the wave — negative margin pulls it up
+                      Transform.translate(
+                        offset: const Offset(0, -10),
+                        child: _PremiumSearchBar(),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
 
                       // Overview
                       _SectionTitle(title: 'Overview', onSeeAll: () {}),
@@ -389,14 +391,36 @@ class _PremiumHeader extends StatelessWidget {
   final double   bellScale;
   final double   topPad;
 
+  // Smooth eased interpolation helper
+  static double _ease(double t) =>
+      t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
   @override
   Widget build(BuildContext context) {
-    // Verse area fades out as user scrolls
-    final verseOpacity = (1.0 - cf * 2.2).clamp(0.0, 1.0);
+    // ── Collapse curves ────────────────────────────────────────────
+    // Verse fades out in the first 55 % of scroll travel
+    final verseCf   = (cf / 0.55).clamp(0.0, 1.0);
+    final verseAlpha = (1.0 - _ease(verseCf)) *
+        verseFade.clamp(0.0, 1.0);
+
+    // Wave fades + shrinks in first 70 %
+    final waveCf    = (cf / 0.70).clamp(0.0, 1.0);
+    final waveAlpha = (1.0 - _ease(waveCf)).clamp(0.0, 1.0);
+
+    // Greeting translates upward only after verse starts collapsing (30 %+)
+    final greetCf   = ((cf - 0.25) / 0.75).clamp(0.0, 1.0);
+    // Max upward shift equals the verse+gap height that was freed (~82 dp)
+    final greetShift = _ease(greetCf) * 82.0;
+
+    // Font sizes interpolate smoothly
+    final greetingFontSize = 11.0 - greetCf * 2.0;   // 11 → 9
+    final nameFontSize     = 17.0 - greetCf * 3.0;   // 17 → 14
+    final showSemester     = cf < 0.75;
 
     return Stack(
+      clipBehavior: Clip.hardEdge,
       children: [
-        // ── Dark navy background ────────────────────────────────────
+        // ── Background gradient ─────────────────────────────────
         Positioned.fill(
           child: Container(
             decoration: const BoxDecoration(
@@ -409,63 +433,60 @@ class _PremiumHeader extends StatelessWidget {
           ),
         ),
 
-        // ── Ambient glow orbs ───────────────────────────────────────
+        // ── Ambient glow orbs ───────────────────────────────────
         Positioned(
           top: -10, left: -20,
-          child: _GlowOrb(
-              size: 160, color: _kAccent.withOpacity(0.13)),
+          child: _GlowOrb(size: 160, color: _kAccent.withOpacity(0.13)),
         ),
         Positioned(
           top: 10, right: -24,
-          child: _GlowOrb(
-              size: 120, color: _kTeal.withOpacity(0.07)),
+          child: _GlowOrb(size: 120, color: _kTeal.withOpacity(0.07)),
         ),
 
-        // ── Content ─────────────────────────────────────────────────
-        Positioned.fill(
+        // ── Verse — fades and physically shrinks upward ─────────
+        Positioned(
+          top: topPad + 10,
+          left: 20, right: 20,
+          child: Opacity(
+            opacity: headerFade * verseAlpha,
+            child: Transform.translate(
+              offset: Offset(0, headerSlide - _ease(verseCf) * 10),
+              child: _VerseArea(verse: verse),
+            ),
+          ),
+        ),
+
+        // ── Greeting row — always visible, shifts up smoothly ───
+        Positioned(
+          // Starts below the verse area; translates up as verse collapses
+          top: topPad + 90 - greetShift,
+          left: 20, right: 20,
           child: Opacity(
             opacity: headerFade,
             child: Transform.translate(
-              offset: Offset(0, headerSlide),
-              child: Padding(
-                padding: EdgeInsets.only(
-                  top: topPad + 12,
-                  left: 20, right: 20,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Section 1 — Verse (fades on collapse)
-                    Opacity(
-                      opacity: verseOpacity * verseFade
-                          .clamp(0.0, 1.0)
-                          .toDouble(),
-                      child: _VerseArea(verse: verse),
-                    ),
-
-                    SizedBox(height: 14 * (1 - cf * 0.8)),
-
-                    // Section 2 — Greeting row
-                    _GreetingRow(
-                      user: user,
-                      greeting: greeting,
-                      bellScale: bellScale,
-                      compact: cf > 0.6,
-                    ),
-                  ],
-                ),
+              offset: Offset(0, headerSlide * (1 - greetCf)),
+              child: _GreetingRow(
+                user: user,
+                greeting: greeting,
+                bellScale: bellScale,
+                greetingFontSize: greetingFontSize,
+                nameFontSize: nameFontSize,
+                showSemester: showSemester,
               ),
             ),
           ),
         ),
 
-        // ── Dual animated wave at bottom edge ───────────────────────
+        // ── Dual wave — fades out on collapse ───────────────────
         Positioned(
           left: 0, right: 0, bottom: 0,
-          child: _DualWave(
-            bgPhase: waveBgT,
-            fgPhase: waveFgT,
-            cf: cf,
+          child: Opacity(
+            opacity: waveAlpha,
+            child: _DualWave(
+              bgPhase: waveBgT,
+              fgPhase: waveFgT,
+              cf: waveCf,
+            ),
           ),
         ),
       ],
@@ -543,12 +564,16 @@ class _GreetingRow extends StatelessWidget {
     required this.user,
     required this.greeting,
     required this.bellScale,
-    required this.compact,
+    required this.greetingFontSize,
+    required this.nameFontSize,
+    required this.showSemester,
   });
   final MockUser user;
   final String   greeting;
   final double   bellScale;
-  final bool     compact;
+  final double   greetingFontSize;   // interpolated: 11 → 9
+  final double   nameFontSize;       // interpolated: 17 → 14
+  final bool     showSemester;
 
   @override
   Widget build(BuildContext context) {
@@ -562,37 +587,41 @@ class _GreetingRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
+              Text(
+                '$greeting 👋',
                 style: AppTypography.labelSmall.copyWith(
                   color: Colors.white.withOpacity(0.58),
-                  fontSize: compact ? 9 : 11,
+                  fontSize: greetingFontSize,
                   fontWeight: FontWeight.w500,
                 ),
-                child: Text('$greeting 👋'),
               ),
               const SizedBox(height: 1),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
+              Text(
+                user.name,
                 style: AppTypography.titleMedium.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
-                  fontSize: compact ? 14 : 17,
+                  fontSize: nameFontSize,
                   letterSpacing: 0.1,
                 ),
-                child: Text(user.name),
               ),
-              if (!compact) ...[
-                const SizedBox(height: 1),
-                Text(
-                  user.semester,
-                  style: AppTypography.labelSmall.copyWith(
-                    color: _kSkyBlue,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+              AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                child: showSemester
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Text(
+                          user.semester,
+                          style: AppTypography.labelSmall.copyWith(
+                            color: _kSkyBlue,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ],
           ),
         ),
