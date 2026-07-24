@@ -208,6 +208,12 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                       const _TodaysFocusSection(),
                       const SizedBox(height: AppSpacing.xl),
 
+                      // QUICK ACTIONS
+                      _SectionTitle(title: 'Quick Actions'),
+                      const SizedBox(height: AppSpacing.md),
+                      const _QuickActionsPanel(),
+                      const SizedBox(height: AppSpacing.xl),
+
                       // TODAY'S TIMETABLE
                       _SectionTitle(
                           title: "Today's Timetable", onSeeAll: () {}),
@@ -1591,6 +1597,283 @@ class _TableRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUICK ACTIONS PANEL — 2×3 premium shortcut grid
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Action data model
+class _ActionItem {
+  const _ActionItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.gradientStart,
+    required this.gradientEnd,
+    this.onTap,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color gradientStart;
+  final Color gradientEnd;
+  final VoidCallback? onTap;
+}
+
+class _QuickActionsPanel extends StatefulWidget {
+  const _QuickActionsPanel();
+
+  @override
+  State<_QuickActionsPanel> createState() => _QuickActionsPanelState();
+}
+
+class _QuickActionsPanelState extends State<_QuickActionsPanel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final List<Animation<double>> _fades;
+  late final List<Animation<double>> _scales;
+
+  // 6 actions in order: fills 2×3 grid left-to-right, top-to-bottom
+  static const _actions = [
+    _ActionItem(
+      icon: Icons.description_rounded,
+      title: 'Notes',
+      subtitle: 'Review your study notes',
+      gradientStart: Color(0xFF2563EB),
+      gradientEnd: Color(0xFF3B82F6),
+    ),
+    _ActionItem(
+      icon: Icons.auto_awesome_rounded,
+      title: 'AI Assistant',
+      subtitle: 'Ask anything instantly',
+      gradientStart: Color(0xFF7C3AED),
+      gradientEnd: Color(0xFF8B5CF6),
+    ),
+    _ActionItem(
+      icon: Icons.assignment_rounded,
+      title: 'Assignments',
+      subtitle: 'View pending tasks',
+      gradientStart: Color(0xFFF97316),
+      gradientEnd: Color(0xFFFB923C),
+    ),
+    _ActionItem(
+      icon: Icons.calendar_month_rounded,
+      title: 'Timetable',
+      subtitle: "Today's schedule",
+      gradientStart: Color(0xFF059669),
+      gradientEnd: Color(0xFF10B981),
+    ),
+    _ActionItem(
+      icon: Icons.calculate_rounded,
+      title: 'GPA Calculator',
+      subtitle: 'Track your CGPA',
+      gradientStart: Color(0xFF0891B2),
+      gradientEnd: Color(0xFF06B6D4),
+    ),
+    _ActionItem(
+      icon: Icons.library_books_rounded,
+      title: 'Subjects',
+      subtitle: 'Manage your courses',
+      gradientStart: Color(0xFFDB2777),
+      gradientEnd: Color(0xFFEC4899),
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 750));
+
+    _fades = List.generate(6, (i) {
+      // Row 0 (i=0,1): 0.00–0.40 | Row 1 (i=2,3): 0.15–0.55 | Row 2 (i=4,5): 0.30–0.70
+      final row = i ~/ 2;
+      final s = row * 0.15;
+      return Tween<double>(begin: 0.0, end: 1.0).animate(
+          CurvedAnimation(parent: _ctrl,
+              curve: Interval(s, s + 0.45, curve: Curves.easeOut)));
+    });
+
+    _scales = List.generate(6, (i) {
+      final row = i ~/ 2;
+      final s = row * 0.15;
+      return Tween<double>(begin: 0.82, end: 1.0).animate(
+          CurvedAnimation(parent: _ctrl,
+              curve: Interval(s, s + 0.50, curve: Curves.elasticOut)));
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.55,   // wide, compact — not too tall
+          ),
+          itemCount: _actions.length,
+          itemBuilder: (_, i) => Opacity(
+            opacity: _fades[i].value,
+            child: Transform.scale(
+              scale: _scales[i].value,
+              child: _QuickActionCard(action: _actions[i]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Single action card ────────────────────────────────────────────────────────
+class _QuickActionCard extends StatefulWidget {
+  const _QuickActionCard({required this.action});
+  final _ActionItem action;
+
+  @override
+  State<_QuickActionCard> createState() => _QuickActionCardState();
+}
+
+class _QuickActionCardState extends State<_QuickActionCard> {
+  bool _pressed  = false;
+  bool _hovered  = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.action;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit:  (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTapDown:  (_) => setState(() => _pressed = true),
+        onTapUp:    (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: a.onTap ?? () {},
+        child: AnimatedScale(
+          scale: _pressed ? 0.94 : (_hovered ? 1.02 : 1.0),
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: a.gradientStart.withOpacity(_hovered ? 0.22 : 0.08),
+                width: 1.0,
+              ),
+              boxShadow: [
+                // Base shadow
+                BoxShadow(
+                  color: Colors.black.withOpacity(_pressed ? 0.04 : 0.07),
+                  blurRadius: _hovered ? 18 : 10,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 4),
+                ),
+                // Coloured ambient glow
+                BoxShadow(
+                  color: a.gradientStart.withOpacity(_hovered ? 0.16 : 0.07),
+                  blurRadius: _hovered ? 22 : 12,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: a.onTap ?? () {},
+                borderRadius: BorderRadius.circular(22),
+                splashColor: a.gradientStart.withOpacity(0.10),
+                highlightColor: a.gradientStart.withOpacity(0.05),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 13),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Icon with gradient background
+                      Container(
+                        width: 42, height: 42,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [a.gradientStart, a.gradientEnd],
+                          ),
+                          borderRadius: BorderRadius.circular(13),
+                          boxShadow: [
+                            BoxShadow(
+                              color: a.gradientStart.withOpacity(0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Icon(a.icon,
+                            color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 11),
+
+                      // Text
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              a.title,
+                              style: AppTypography.titleSmall.copyWith(
+                                color: AppColors.onSurface,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              a.subtitle,
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.onSurfaceVariant,
+                                fontSize: 10,
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
